@@ -36,7 +36,7 @@ export default defineSchema({
 
   // Intentions: Near-term focus within Areas
   intentions: defineTable({
-    userId: v.id("users"),
+    userId: v.string(),
     areaId: v.id("areas"),
     title: v.string(),
     description: v.optional(v.string()),
@@ -53,7 +53,7 @@ export default defineSchema({
 
   // Chunks: Executable work units (30-120 minutes)
   chunks: defineTable({
-    userId: v.id("users"),
+    userId: v.string(),
     areaId: v.id("areas"),
     intentionId: v.id("intentions"),
     title: v.string(),
@@ -77,7 +77,7 @@ export default defineSchema({
 
   // Day Plans: Daily plan container
   dayPlans: defineTable({
-    userId: v.id("users"),
+    userId: v.string(),
     date: v.string(), // ISO date string (YYYY-MM-DD)
     timeBudget: v.number(), // Available minutes for the day
     energyMode: v.union(

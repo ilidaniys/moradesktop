@@ -27,12 +27,13 @@ interface AreaFormProps {
     title: string;
     description: string;
     weight: number;
+    status: string;
   };
 }
 
 export function AreaForm({ open, onOpenChange, initialData }: AreaFormProps) {
-  const createArea = useMutation(api.areas.create.create);
-  const updateArea = useMutation(api.areas.update.update);
+  const createArea = useMutation(api.areas.create);
+  const updateArea = useMutation(api.areas.update);
 
   const isEditing = !!initialData;
 
@@ -63,7 +64,7 @@ export function AreaForm({ open, onOpenChange, initialData }: AreaFormProps) {
         onOpenChange(false);
         form.reset();
       } catch (error: any) {
-        toast.error(error.message ?? "Failed to save area");
+        toast.error(error?.message ?? "Failed to save area");
       }
     },
   });

@@ -4,6 +4,7 @@ import { type Metadata } from "next";
 import { Inter } from "next/font/google";
 import { ConvexClientProvider } from "./ConvexClientProvider";
 import { Toaster } from "~/components/ui/sonner";
+import { ThemeProvider } from "~/components/theme/ThemeProvider";
 
 export const metadata: Metadata = {
   title: "AI Focus Planner",
@@ -21,12 +22,14 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={inter.variable}>
+    <html lang="en" className={inter.variable} suppressHydrationWarning>
       <body>
-        <ConvexClientProvider>
-          {children}
-          <Toaster />
-        </ConvexClientProvider>
+        <ThemeProvider>
+          <ConvexClientProvider>
+            {children}
+            <Toaster />
+          </ConvexClientProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

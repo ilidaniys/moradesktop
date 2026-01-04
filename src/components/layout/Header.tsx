@@ -2,6 +2,7 @@
 
 import { UserButton, useUser } from "@clerk/nextjs";
 import { User } from "lucide-react";
+import { ThemeToggle } from "~/components/theme/ThemeToggle";
 
 export function Header() {
   const { user } = useUser();
@@ -14,7 +15,8 @@ export function Header() {
         </h2>
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
+        <ThemeToggle />
         {user && (
           <div className="flex items-center gap-2.5 text-sm text-secondary">
             <User className="h-4 w-4" />

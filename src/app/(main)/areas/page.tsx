@@ -13,7 +13,7 @@ import { api } from "../../../../convex/_generated/api";
 export default function AreasPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
 
-  const areas = useQuery(api.areas.list.list, {});
+  const areas = useQuery(api.areas.list, {});
 
   if (areas === undefined) {
     return (

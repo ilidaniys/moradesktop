@@ -29,7 +29,7 @@ export function DeleteAreaDialog({
   areaId,
   areaTitle,
 }: DeleteAreaDialogProps) {
-  const deleteArea = useMutation(api.areas.deleteArea);
+  const deleteArea = useMutation(api.areas.delete.deleteArea);
 
   const handleDelete = async () => {
     if (!areaId) return;
@@ -48,15 +48,15 @@ export function DeleteAreaDialog({
       <AlertDialogContent>
         <AlertDialogHeader>
           <div className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-destructive" />
+            <AlertTriangle className="text-destructive h-5 w-5" />
             <AlertDialogTitle>Delete Area</AlertDialogTitle>
           </div>
           <AlertDialogDescription>
             Are you sure you want to delete <strong>{areaTitle}</strong>?
             <br />
             <br />
-            This will also delete all associated intentions and chunks. This action
-            cannot be undone.
+            This will also delete all associated intentions and chunks. This
+            action cannot be undone.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
