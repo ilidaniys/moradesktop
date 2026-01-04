@@ -34,15 +34,15 @@ export function AreaCard({
   onDelete,
 }: AreaCardProps) {
   const healthColors = {
-    normal: "border-slate-200",
-    neglected: "border-red-200 bg-red-50/50",
-    urgent: "border-amber-200 bg-amber-50/50",
+    normal: "border-border",
+    neglected: "border-danger-border bg-danger-soft",
+    urgent: "border-warning-border bg-warning-soft",
   };
 
   const daysSinceTouch = Math.floor((Date.now() - lastTouchedAt) / (1000 * 60 * 60 * 24));
 
   return (
-    <Card className={cn("transition-all hover:shadow-md", healthColors[health])}>
+    <Card className={cn("transition-colors", healthColors[health])}>
       <CardHeader>
         <div className="flex items-start justify-between">
           <div className="flex-1">

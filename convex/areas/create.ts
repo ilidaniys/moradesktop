@@ -19,7 +19,7 @@ export const create = mutation({
     }
 
     const areaId = await ctx.db.insert("areas", {
-      userId: identity.subject as any,
+      userId: identity.subject,
       title: args.title,
       description: args.description,
       weight: args.weight,

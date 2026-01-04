@@ -15,20 +15,20 @@ export default defineSchema({
 
   // Areas: Long-term domains of responsibility
   areas: defineTable({
-    userId: v.id("users"),
+    userId: v.string(),
     title: v.string(),
     description: v.string(),
     weight: v.number(), // Priority/importance (1-10)
     status: v.union(
       v.literal("active"),
       v.literal("paused"),
-      v.literal("archived")
+      v.literal("archived"),
     ),
     lastTouchedAt: v.number(), // Timestamp of last chunk work
     health: v.union(
       v.literal("neglected"),
       v.literal("normal"),
-      v.literal("urgent")
+      v.literal("urgent"),
     ),
   })
     .index("by_user", ["userId"])
@@ -43,7 +43,7 @@ export default defineSchema({
     status: v.union(
       v.literal("active"),
       v.literal("paused"),
-      v.literal("done")
+      v.literal("done"),
     ),
     order: v.number(), // For manual sorting within area
   })
@@ -64,7 +64,7 @@ export default defineSchema({
       v.literal("ready"),
       v.literal("inPlan"),
       v.literal("inProgress"),
-      v.literal("done")
+      v.literal("done"),
     ),
     tags: v.array(v.string()),
     completedAt: v.optional(v.number()),
@@ -83,13 +83,13 @@ export default defineSchema({
     energyMode: v.union(
       v.literal("deep"),
       v.literal("normal"),
-      v.literal("light")
+      v.literal("light"),
     ),
     notes: v.optional(v.string()),
     status: v.union(
       v.literal("draft"),
       v.literal("active"),
-      v.literal("completed")
+      v.literal("completed"),
     ),
     finalizedAt: v.optional(v.number()),
     completedAt: v.optional(v.number()),
@@ -107,7 +107,7 @@ export default defineSchema({
       v.literal("pending"),
       v.literal("completed"),
       v.literal("skipped"),
-      v.literal("moved")
+      v.literal("moved"),
     ),
     aiReason: v.optional(v.string()), // Why AI suggested this chunk
     actualDurationMin: v.optional(v.number()), // Tracked time
@@ -121,7 +121,7 @@ export default defineSchema({
     perceivedLoad: v.union(
       v.literal("light"),
       v.literal("normal"),
-      v.literal("heavy")
+      v.literal("heavy"),
     ),
     notes: v.optional(v.string()),
   }).index("by_dayPlan", ["dayPlanId"]),

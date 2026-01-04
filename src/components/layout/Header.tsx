@@ -7,24 +7,24 @@ export function Header() {
   const { user } = useUser();
 
   return (
-    <header className="flex h-16 items-center justify-between border-b bg-card px-6">
+    <header className="flex h-16 items-center justify-between bg-background px-8 shadow-sm">
       <div className="flex items-center gap-4">
-        <h2 className="text-lg font-semibold">
+        <h2 className="text-lg font-medium text-foreground">
           {/* Page title will be added by individual pages */}
         </h2>
       </div>
 
       <div className="flex items-center gap-4">
         {user && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="flex items-center gap-2.5 text-sm text-secondary">
             <User className="h-4 w-4" />
-            <span>{user.primaryEmailAddress?.emailAddress || user.fullName || "User"}</span>
+            <span className="font-normal">{user.primaryEmailAddress?.emailAddress || user.fullName || "User"}</span>
           </div>
         )}
         <UserButton
           appearance={{
             elements: {
-              avatarBox: "w-9 h-9",
+              avatarBox: "w-9 h-9 rounded-full",
             },
           }}
         />

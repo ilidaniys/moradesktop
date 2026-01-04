@@ -31,8 +31,8 @@ interface AreaFormProps {
 }
 
 export function AreaForm({ open, onOpenChange, initialData }: AreaFormProps) {
-  const createArea = useMutation(api.areas.create);
-  const updateArea = useMutation(api.areas.update);
+  const createArea = useMutation(api.areas.create.create);
+  const updateArea = useMutation(api.areas.update.update);
 
   const isEditing = !!initialData;
 
@@ -72,7 +72,9 @@ export function AreaForm({ open, onOpenChange, initialData }: AreaFormProps) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[525px]">
         <DialogHeader>
-          <DialogTitle>{isEditing ? "Edit Area" : "Create New Area"}</DialogTitle>
+          <DialogTitle>
+            {isEditing ? "Edit Area" : "Create New Area"}
+          </DialogTitle>
           <DialogDescription>
             {isEditing
               ? "Update the details of your area of responsibility."
@@ -92,7 +94,8 @@ export function AreaForm({ open, onOpenChange, initialData }: AreaFormProps) {
               validators={{
                 onChange: ({ value }) => {
                   if (!value) return "Title is required";
-                  if (value.length > 100) return "Title must be less than 100 characters";
+                  if (value.length > 100)
+                    return "Title must be less than 100 characters";
                   return undefined;
                 },
               }}
@@ -108,7 +111,7 @@ export function AreaForm({ open, onOpenChange, initialData }: AreaFormProps) {
                     placeholder="e.g., Health & Fitness"
                   />
                   {field.state.meta.errors.length > 0 && (
-                    <p className="text-sm text-destructive">
+                    <p className="text-destructive text-sm">
                       {field.state.meta.errors[0]}
                     </p>
                   )}
@@ -139,7 +142,7 @@ export function AreaForm({ open, onOpenChange, initialData }: AreaFormProps) {
                     rows={3}
                   />
                   {field.state.meta.errors.length > 0 && (
-                    <p className="text-sm text-destructive">
+                    <p className="text-destructive text-sm">
                       {field.state.meta.errors[0]}
                     </p>
                   )}
@@ -168,14 +171,17 @@ export function AreaForm({ open, onOpenChange, initialData }: AreaFormProps) {
                     max={10}
                     step={1}
                     value={[field.state.value]}
-                    onValueChange={(values) => field.handleChange(values[0] ?? 5)}
+                    onValueChange={(values) =>
+                      field.handleChange(values[0] ?? 5)
+                    }
                     className="py-4"
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Higher weight means this area will be prioritized more in day plans
+                  <p className="text-muted-foreground text-xs">
+                    Higher weight means this area will be prioritized more in
+                    day plans
                   </p>
                   {field.state.meta.errors.length > 0 && (
-                    <p className="text-sm text-destructive">
+                    <p className="text-destructive text-sm">
                       {field.state.meta.errors[0]}
                     </p>
                   )}

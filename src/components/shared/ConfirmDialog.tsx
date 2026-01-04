@@ -36,7 +36,7 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   const variantStyles = {
     danger: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
-    warning: "bg-amber-600 text-white hover:bg-amber-700 dark:bg-amber-700 dark:hover:bg-amber-800",
+    warning: "bg-warning text-white hover:bg-warning/90",
     default: "bg-primary text-primary-foreground hover:bg-primary/90",
   };
 
@@ -50,14 +50,14 @@ export function ConfirmDialog({
                 className={cn(
                   "rounded-full p-2",
                   variant === "danger" && "bg-destructive/10",
-                  variant === "warning" && "bg-amber-100 dark:bg-amber-900/20"
+                  variant === "warning" && "bg-warning-soft"
                 )}
               >
                 <AlertTriangle
                   className={cn(
                     "h-5 w-5",
                     variant === "danger" && "text-destructive",
-                    variant === "warning" && "text-amber-600 dark:text-amber-400"
+                    variant === "warning" && "text-warning"
                   )}
                 />
               </div>

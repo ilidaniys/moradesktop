@@ -12,15 +12,15 @@ export function AreaHealthBadge({ health, className }: AreaHealthBadgeProps) {
   const healthConfig = {
     normal: {
       label: "Normal",
-      className: "health-normal",
+      className: "border-border bg-background text-foreground",
     },
     neglected: {
       label: "Neglected",
-      className: "health-neglected",
+      className: "border-danger-border bg-danger-soft text-danger",
     },
     urgent: {
       label: "Urgent",
-      className: "health-urgent",
+      className: "border-warning-border bg-warning-soft text-warning",
     },
   };
 

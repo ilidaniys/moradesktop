@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LayoutDashboard, Calendar, BarChart3, Settings } from "lucide-react";
 import { Button } from "~/components/ui/button";
-import { Separator } from "~/components/ui/separator";
 import { cn } from "~/lib/utils";
 
 const navigation = [
@@ -18,36 +17,40 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <div className="flex h-full w-64 flex-col border-r bg-card">
-      <div className="flex h-16 items-center border-b px-6">
-        <h1 className="text-xl font-bold">AI Focus Planner</h1>
+    <div className="flex h-full w-64 flex-col bg-muted/30">
+      {/* Logo/Title Section */}
+      <div className="flex h-16 items-center px-6">
+        <h1 className="text-xl font-medium text-foreground">AI Focus Planner</h1>
       </div>
 
-      <nav className="flex-1 space-y-1 p-4">
+      {/* Navigation */}
+      <nav className="flex-1 space-y-1 px-3 py-6">
         {navigation.map((item) => {
           const isActive = pathname === item.href;
           return (
             <Button
               key={item.name}
-              variant={isActive ? "secondary" : "ghost"}
+              variant="ghost"
               className={cn(
-                "w-full justify-start gap-3",
-                isActive && "bg-primary/10 text-primary hover:bg-primary/20"
+                "w-full justify-start gap-3 font-normal transition-colors duration-150",
+                isActive
+                  ? "bg-primary-soft text-primary hover:bg-primary-soft/80"
+                  : "text-secondary hover:bg-muted/50"
               )}
               asChild
             >
               <Link href={item.href}>
                 <item.icon className="h-5 w-5" />
-                {item.name}
+                <span>{item.name}</span>
               </Link>
             </Button>
           );
         })}
       </nav>
 
-      <Separator />
-      <div className="p-4">
-        <p className="text-xs text-muted-foreground">v1.0.0 - MVP</p>
+      {/* Footer */}
+      <div className="px-6 py-4">
+        <p className="text-xs text-muted">v1.0.0 - MVP</p>
       </div>
     </div>
   );

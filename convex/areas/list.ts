@@ -4,7 +4,7 @@ import { v } from "convex/values";
 export const list = query({
   args: {
     status: v.optional(
-      v.union(v.literal("active"), v.literal("paused"), v.literal("archived"))
+      v.union(v.literal("active"), v.literal("paused"), v.literal("archived")),
     ),
   },
   handler: async (ctx, args) => {
@@ -19,7 +19,7 @@ export const list = query({
       areas = await ctx.db
         .query("areas")
         .withIndex("by_user_status", (q) =>
-          q.eq("userId", identity.subject as any).eq("status", args.status!)
+          q.eq("userId", identity.subject as any).eq("status", args.status!),
         )
         .collect();
     } else {

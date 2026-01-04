@@ -13,6 +13,7 @@ export const env = createEnv({
     // AI
     OPENAI_API_KEY: z.string().min(1),
     GEMINI_MODEL: z.string().default("gemini-2.0-flash-exp"),
+    CLERK_JWT_ISSUER_DOMAIN: z.string().min(1),
   },
 
   /**
@@ -22,6 +23,7 @@ export const env = createEnv({
    */
   client: {
     NEXT_PUBLIC_CONVEX_URL: z.string().url(),
+    NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: z.string(),
   },
 
   /**
@@ -29,11 +31,14 @@ export const env = createEnv({
    * middlewares) or client-side so we need to destruct manually.
    */
   runtimeEnv: {
+    NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:
+      process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
     NODE_ENV: process.env.NODE_ENV,
     CONVEX_DEPLOYMENT: process.env.CONVEX_DEPLOYMENT,
     NEXT_PUBLIC_CONVEX_URL: process.env.NEXT_PUBLIC_CONVEX_URL,
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
     GEMINI_MODEL: process.env.GEMINI_MODEL,
+    CLERK_JWT_ISSUER_DOMAIN: process.env.CLERK_JWT_ISSUER_DOMAIN,
   },
   /**
    * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation. This is especially
