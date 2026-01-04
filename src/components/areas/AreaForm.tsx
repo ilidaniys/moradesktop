@@ -64,7 +64,7 @@ export function AreaForm({ open, onOpenChange, initialData }: AreaFormProps) {
         onOpenChange(false);
         form.reset();
       } catch (error: any) {
-        toast.error(error?.message ?? "Failed to save area");
+        toast.error("Failed to save area");
       }
     },
   });
@@ -86,7 +86,7 @@ export function AreaForm({ open, onOpenChange, initialData }: AreaFormProps) {
           onSubmit={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            form.handleSubmit();
+            void form.handleSubmit();
           }}
         >
           <div className="grid gap-4 py-4">

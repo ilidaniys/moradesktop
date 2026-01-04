@@ -29,7 +29,7 @@ export function DeleteAreaDialog({
   areaId,
   areaTitle,
 }: DeleteAreaDialogProps) {
-  const deleteArea = useMutation(api.areas.delete.deleteArea);
+  const deleteArea = useMutation(api.areas.remove);
 
   const handleDelete = async () => {
     if (!areaId) return;
@@ -39,7 +39,7 @@ export function DeleteAreaDialog({
       toast.success("Area deleted successfully!");
       onOpenChange(false);
     } catch (error: any) {
-      toast.error(error.message ?? "Failed to delete area");
+      toast.error("Failed to delete area");
     }
   };
 

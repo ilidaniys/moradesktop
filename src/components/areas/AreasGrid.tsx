@@ -61,6 +61,7 @@ export function AreasGrid({ areas }: AreasGridProps) {
                 title: editingArea.title,
                 description: editingArea.description,
                 weight: editingArea.weight,
+                status: editingArea.status,
               }
             : undefined
         }
