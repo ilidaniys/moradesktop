@@ -1,12 +1,11 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "convex/react";
 import { X } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
-import { type ChunkFormData, chunkFormSchema } from "~/lib/validation/chunk";
+import { type ChunkFormData } from "~/lib/validation/chunk";
 import { Button } from "~/components/ui/button";
 import {
   Dialog,
@@ -58,7 +57,6 @@ export function ChunkForm({
   const [tagInput, setTagInput] = useState("");
 
   const form = useForm<ChunkFormData>({
-    resolver: zodResolver(chunkFormSchema),
     defaultValues: defaultValues || {
       title: "",
       dod: "",

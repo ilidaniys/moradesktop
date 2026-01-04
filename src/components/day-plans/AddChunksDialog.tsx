@@ -1,10 +1,8 @@
 "use client";
 
 import { useQuery } from "convex/react";
-import { Clock, Plus } from "lucide-react";
+import { Clock, LayoutDashboard, Plus } from "lucide-react";
 import { useState } from "react";
-import { api } from "~/convex/_generated/api";
-import type { Id } from "~/convex/_generated/dataModel";
 import { Button } from "~/components/ui/button";
 import {
   Dialog,
@@ -24,6 +22,8 @@ import { Card, CardContent } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
 import { EmptyState } from "~/components/shared/EmptyState";
 import { LoadingSpinner } from "~/components/shared/LoadingSpinner";
+import { api } from "../../../convex/_generated/api";
+import type { Id } from "../../../convex/_generated/dataModel";
 
 interface AddChunksDialogProps {
   open: boolean;
@@ -41,16 +41,14 @@ export function AddChunksDialog({
   const [selectedArea, setSelectedArea] = useState<string>("all");
   const [selectedTag, setSelectedTag] = useState<string>("all");
 
-  const areas = useQuery(api.areas.list);
+  const areas = useQuery(api.areas.list, {});
   const readyChunks = useQuery(api.chunks.listReadyChunks);
 
   const isLoading = areas === undefined || readyChunks === undefined;
 
   // Get all unique tags from ready chunks
   const allTags = readyChunks
-    ? Array.from(
-        new Set(readyChunks.flatMap((chunk) => chunk.tags))
-      ).sort()
+    ? Array.from(new Set(readyChunks.flatMap((chunk) => chunk.tags))).sort()
     : [];
 
   // Filter chunks
@@ -74,7 +72,7 @@ export function AddChunksDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[700px] max-h-[80vh]">
+      <DialogContent className="max-h-[80vh] sm:max-w-[700px]">
         <DialogHeader>
           <DialogTitle>Add Chunks to Plan</DialogTitle>
           <DialogDescription>
@@ -126,9 +124,10 @@ export function AddChunksDialog({
             </div>
 
             {/* Chunks List */}
-            <div className="space-y-2 max-h-[400px] overflow-y-auto">
-              {filteredChunks && filteredChunks.length === 0 ? (
+            <div className="max-h-[400px] space-y-2 overflow-y-auto">
+              {filteredChunks?.length === 0 ? (
                 <EmptyState
+                  icon={LayoutDashboard}
                   title="No chunks available"
                   description="Create ready chunks in your areas first"
                 />
@@ -137,33 +136,34 @@ export function AddChunksDialog({
                   <Card key={chunk._id} className="hover:bg-accent/30">
                     <CardContent className="p-3">
                       <div className="flex items-start gap-3">
-                        <div className="flex-1 space-y-2 min-w-0">
+                        <div className="min-w-0 flex-1 space-y-2">
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex-1">
-                              <h4 className="font-medium text-foreground line-clamp-1">
+                              <h4 className="text-foreground line-clamp-1 font-medium">
                                 {chunk.title}
                               </h4>
                               {chunk.area && (
-                                <p className="text-xs text-muted">
+                                <p className="text-muted text-xs">
                                   {chunk.area.title}
-                                  {chunk.intention && ` → ${chunk.intention.title}`}
+                                  {chunk.intention &&
+                                    ` → ${chunk.intention.title}`}
                                 </p>
                               )}
                             </div>
-                            <div className="flex items-center gap-1.5 text-sm text-muted shrink-0">
+                            <div className="text-muted flex shrink-0 items-center gap-1.5 text-sm">
                               <Clock className="h-3.5 w-3.5" />
                               <span>{chunk.durationMin}m</span>
                             </div>
                           </div>
 
                           {chunk.dod && (
-                            <p className="text-sm text-secondary line-clamp-1">
+                            <p className="text-secondary line-clamp-1 text-sm">
                               {chunk.dod}
                             </p>
                           )}
 
                           {chunk.tags.length > 0 && (
-                            <div className="flex gap-1.5 flex-wrap">
+                            <div className="flex flex-wrap gap-1.5">
                               {chunk.tags.map((tag) => (
                                 <Badge
                                   key={tag}
@@ -181,7 +181,7 @@ export function AddChunksDialog({
                           size="sm"
                           onClick={() => handleAddChunk(chunk._id)}
                         >
-                          <Plus className="h-4 w-4 mr-1" />
+                          <Plus className="mr-1 h-4 w-4" />
                           Add
                         </Button>
                       </div>

@@ -1,10 +1,8 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { useQuery, useMutation } from "convex/react";
-import { Plus, Save, CheckCircle2 } from "lucide-react";
-import { api } from "~/convex/_generated/api";
-import type { Id } from "~/convex/_generated/dataModel";
+import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery } from "convex/react";
+import { CheckCircle2, LayoutDashboard, Plus, Save } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { EmptyState } from "~/components/shared/EmptyState";
@@ -13,7 +11,9 @@ import { DayPlanControls } from "./DayPlanControls";
 import { TimeBudgetIndicator } from "./TimeBudgetIndicator";
 import { SortablePlanItems } from "./SortablePlanItems";
 import { AddChunksDialog } from "./AddChunksDialog";
-import { useToast } from "~/hooks/use-toast";
+import type { Id } from "../../../convex/_generated/dataModel";
+import { api } from "../../../convex/_generated/api";
+import { toast } from "sonner";
 
 type EnergyMode = "deep" | "normal" | "light";
 
@@ -31,7 +31,6 @@ interface PlanItem {
 }
 
 export function DayPlanBuilder() {
-  const { toast } = useToast();
   const [timeBudget, setTimeBudget] = useState(480); // 8 hours default
   const [energyMode, setEnergyMode] = useState<EnergyMode>("normal");
   const [maxTasks, setMaxTasks] = useState(5);
@@ -47,25 +46,31 @@ export function DayPlanBuilder() {
   // Get today's date in YYYY-MM-DD format
   const today = useMemo(() => {
     const date = new Date();
-    return date.toISOString().split("T")[0];
+    return date.toISOString().split("T")[0]!;
   }, []);
 
-  const existingPlan = useQuery(api.dayPlans.getByDate, { date: today });
+  const existingPlan = useQuery(api.dayPlans.getByDate, { date: today ?? "" });
 
   // Initialize from existing plan if available
-  useMemo(() => {
-    if (existingPlan && !dayPlanId) {
-      setDayPlanId(existingPlan._id);
-      setTimeBudget(existingPlan.timeBudgetMin);
+  useEffect(() => {
+    if (existingPlan) {
+      if (!dayPlanId) {
+        setDayPlanId(existingPlan._id);
+      }
+      setTimeBudget(existingPlan.timeBudget);
       setEnergyMode(existingPlan.energyMode as EnergyMode);
-      setMaxTasks(existingPlan.maxTasks);
 
       // Load items
       if (existingPlan.items) {
         const loadedItems: PlanItem[] = existingPlan.items.map((item: any) => ({
           id: item._id,
           chunkId: item.chunkId,
-          chunk: item.chunk,
+          chunk: {
+            title: item.chunk?.title || "Untitled",
+            durationMin: item.chunk?.durationMin || 0,
+            tags: item.chunk?.tags || [],
+            dod: item.chunk?.dod || "",
+          },
           locked: item.locked,
           order: item.order,
         }));
@@ -77,7 +82,7 @@ export function DayPlanBuilder() {
   // Calculate used minutes
   const usedMinutes = items.reduce(
     (sum, item) => sum + item.chunk.durationMin,
-    0
+    0,
   );
 
   // Get excluded chunk IDs for the add dialog
@@ -87,69 +92,69 @@ export function DayPlanBuilder() {
     try {
       const planId = await createDayPlan({
         date: today,
-        timeBudgetMin: timeBudget,
+        timeBudget: timeBudget,
         energyMode,
-        maxTasks,
       });
       setDayPlanId(planId);
-      toast({
-        title: "Plan created",
-        description: "Your day plan has been created successfully",
-      });
+      return planId;
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to create plan",
-        variant: "destructive",
+      console.log(error);
+      return null;
+    }
+  };
+
+  const finalizePlanMutation = useMutation(api.dayPlans.finalize);
+
+  const handleFinalizePlan = async () => {
+    if (!dayPlanId) return;
+
+    try {
+      await finalizePlanMutation({
+        dayPlanId,
       });
+      toast.success("Plan finalized");
+    } catch (error) {
+      toast.error("Failed to finalize plan");
     }
   };
 
   const handleAddChunk = async (chunkId: Id<"chunks">) => {
-    if (!dayPlanId) {
-      await handleCreatePlan();
-      return;
+    let currentPlanId = dayPlanId;
+
+    if (!currentPlanId) {
+      currentPlanId = await handleCreatePlan();
+      if (!currentPlanId) return;
     }
 
-    // Check max tasks limit
-    if (items.length >= maxTasks) {
-      toast({
-        title: "Max tasks reached",
-        description: `You can only add up to ${maxTasks} tasks`,
-        variant: "destructive",
+    // Check max tasks limit (manual check since we don't have it in schema yet)
+    if (items.length >= 8) {
+      toast.error("Max tasks reached", {
+        description: "You can only add up to 8 tasks to a day plan",
       });
       return;
     }
 
     try {
       await addItemMutation({
-        dayPlanId,
+        dayPlanId: currentPlanId,
         chunkId,
-        order: items.length + 1,
       });
 
-      // Optimistically update UI
-      // Note: In production, you'd refetch or use the returned item
       setShowAddDialog(false);
 
-      toast({
-        title: "Chunk added",
+      toast.success("Chunk added", {
         description: "Chunk has been added to your plan",
       });
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to add chunk",
-        variant: "destructive",
-      });
+      toast.error("Failed to add chunk");
     }
   };
 
   const handleToggleLock = (itemId: string) => {
     setItems((prevItems) =>
       prevItems.map((item) =>
-        item.id === itemId ? { ...item, locked: !item.locked } : item
-      )
+        item.id === itemId ? { ...item, locked: !item.locked } : item,
+      ),
     );
   };
 
@@ -158,7 +163,6 @@ export function DayPlanBuilder() {
 
     try {
       await removeItemMutation({
-        dayPlanId,
         itemId: itemId as Id<"dayPlanItems">,
       });
 
@@ -171,16 +175,11 @@ export function DayPlanBuilder() {
         }));
       });
 
-      toast({
-        title: "Item removed",
+      toast.success("Item removed", {
         description: "Item has been removed from your plan",
       });
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to remove item",
-        variant: "destructive",
-      });
+      toast.error("Failed to remove item");
     }
   };
 
@@ -191,18 +190,13 @@ export function DayPlanBuilder() {
 
     try {
       await reorderItemsMutation({
-        dayPlanId,
         itemOrders: reorderedItems.map((item) => ({
           itemId: item.id as Id<"dayPlanItems">,
           order: item.order,
         })),
       });
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to reorder items",
-        variant: "destructive",
-      });
+      toast.error("Failed to reorder items");
     }
   };
 
@@ -243,13 +237,14 @@ export function DayPlanBuilder() {
             size="sm"
             disabled={items.length >= maxTasks}
           >
-            <Plus className="h-4 w-4 mr-2" />
+            <Plus className="mr-2 h-4 w-4" />
             Add Chunk
           </Button>
         </CardHeader>
         <CardContent>
           {items.length === 0 ? (
             <EmptyState
+              icon={LayoutDashboard}
               title="No chunks yet"
               description="Add ready chunks to build your day plan"
             />
@@ -268,11 +263,11 @@ export function DayPlanBuilder() {
       {items.length > 0 && (
         <div className="flex justify-end gap-3">
           <Button variant="outline" size="lg">
-            <Save className="h-4 w-4 mr-2" />
+            <Save className="mr-2 h-4 w-4" />
             Save Draft
           </Button>
-          <Button size="lg">
-            <CheckCircle2 className="h-4 w-4 mr-2" />
+          <Button variant={"default"} size="lg" onClick={handleFinalizePlan}>
+            <CheckCircle2 className="mr-2 h-4 w-4" />
             Finalize Plan
           </Button>
         </div>

@@ -8,7 +8,7 @@ export const create = mutation({
     energyMode: v.union(
       v.literal("deep"),
       v.literal("normal"),
-      v.literal("light")
+      v.literal("light"),
     ),
     notes: v.optional(v.string()),
   },
@@ -22,7 +22,7 @@ export const create = mutation({
     const existing = await ctx.db
       .query("dayPlans")
       .withIndex("by_user_date", (q) =>
-        q.eq("userId", identity.subject as any).eq("date", args.date)
+        q.eq("userId", identity.subject).eq("date", args.date),
       )
       .first();
 
@@ -72,7 +72,7 @@ export const get = query({
           ...item,
           chunk,
         };
-      })
+      }),
     );
 
     // Sort by order
@@ -98,7 +98,7 @@ export const getByDate = query({
     const dayPlan = await ctx.db
       .query("dayPlans")
       .withIndex("by_user_date", (q) =>
-        q.eq("userId", identity.subject as any).eq("date", args.date)
+        q.eq("userId", identity.subject).eq("date", args.date),
       )
       .first();
 
@@ -120,7 +120,7 @@ export const getByDate = query({
           ...item,
           chunk,
         };
-      })
+      }),
     );
 
     // Sort by order
@@ -217,7 +217,7 @@ export const removeItem = mutation({
 
     // Update chunk status back to ready
     const chunk = await ctx.db.get(item.chunkId);
-    if (chunk && chunk.status === "inPlan") {
+    if (chunk?.status === "inPlan") {
       await ctx.db.patch(item.chunkId, {
         status: "ready",
       });
@@ -227,10 +227,16 @@ export const removeItem = mutation({
   },
 });
 
-export const reorderItems = mutation({
+export const updateItemStatus = mutation({
   args: {
     itemId: v.id("dayPlanItems"),
-    newOrder: v.number(),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("completed"),
+      v.literal("skipped"),
+      v.literal("moved"),
+    ),
+    actualDurationMin: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -250,8 +256,64 @@ export const reorderItems = mutation({
     }
 
     await ctx.db.patch(args.itemId, {
-      order: args.newOrder,
+      status: args.status,
+      actualDurationMin: args.actualDurationMin,
     });
+
+    // If status is completed, update the chunk status as well
+    if (args.status === "completed") {
+      await ctx.db.patch(item.chunkId, {
+        status: "done",
+        completedAt: Date.now(),
+      });
+
+      // Update area's lastTouchedAt
+      const chunk = await ctx.db.get(item.chunkId);
+      if (chunk) {
+        await ctx.db.patch(chunk.areaId, {
+          lastTouchedAt: Date.now(),
+        });
+      }
+    } else if (args.status === "moved" || args.status === "skipped") {
+      // If moved or skipped, chunk goes back to ready
+      await ctx.db.patch(item.chunkId, {
+        status: "ready",
+      });
+    }
+
+    return args.itemId;
+  },
+});
+
+export const reorderItems = mutation({
+  args: {
+    itemOrders: v.array(
+      v.object({
+        itemId: v.id("dayPlanItems"),
+        order: v.number(),
+      }),
+    ),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    for (const { itemId, order } of args.itemOrders) {
+      const item = await ctx.db.get(itemId);
+      if (!item) continue;
+
+      // Verify day plan belongs to user
+      const dayPlan = await ctx.db.get(item.dayPlanId);
+      if (dayPlan?.userId !== identity.subject) {
+        throw new Error("Access denied");
+      }
+
+      await ctx.db.patch(itemId, {
+        order: order,
+      });
+    }
   },
 });
 
@@ -283,7 +345,7 @@ export const complete = mutation({
     perceivedLoad: v.union(
       v.literal("light"),
       v.literal("normal"),
-      v.literal("heavy")
+      v.literal("heavy"),
     ),
     notes: v.optional(v.string()),
   },

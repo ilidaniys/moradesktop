@@ -1,25 +1,20 @@
 "use client";
 
-import { Calendar } from "lucide-react";
-import { EmptyState } from "~/components/shared/EmptyState";
+import { DayPlanBuilder } from "~/components/day-plans/DayPlanBuilder";
 
 export default function DayBuilderPage() {
   return (
-    <div>
-      <div className="mb-6">
+    <div className="container mx-auto max-w-5xl py-8">
+      <div className="mb-8">
         <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">
           Day Builder
         </h1>
-        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-          Build your daily plan from ready chunks
+        <p className="mt-2 text-slate-600 dark:text-slate-400">
+          Build your daily plan by selecting ready chunks from your focus areas.
         </p>
       </div>
 
-      <EmptyState
-        icon={Calendar}
-        title="Day builder coming soon"
-        description="This feature will help you build realistic daily plans using AI-powered suggestions."
-      />
+      <DayPlanBuilder />
     </div>
   );
 }

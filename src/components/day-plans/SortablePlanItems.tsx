@@ -1,13 +1,13 @@
 "use client";
 
 import {
-  DndContext,
   closestCenter,
+  DndContext,
+  type DragEndEvent,
   KeyboardSensor,
   PointerSensor,
   useSensor,
   useSensors,
-  DragEndEvent,
 } from "@dnd-kit/core";
 import {
   arrayMove,
@@ -17,8 +17,8 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import type { Id } from "~/convex/_generated/dataModel";
 import { DayPlanItem } from "./DayPlanItem";
+import type { Id } from "../../../convex/_generated/dataModel";
 
 interface ChunkData {
   title: string;
@@ -96,7 +96,7 @@ export function SortablePlanItems({
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
-    })
+    }),
   );
 
   const handleDragEnd = (event: DragEndEvent) => {

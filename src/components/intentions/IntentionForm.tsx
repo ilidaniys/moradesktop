@@ -1,13 +1,9 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery } from "convex/react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
-import {
-  type IntentionFormData,
-  intentionFormSchema,
-} from "~/lib/validation/intention";
+import { type IntentionFormData } from "~/lib/validation/intention";
 import { Button } from "~/components/ui/button";
 import {
   Dialog,
@@ -58,7 +54,6 @@ export function IntentionForm({
   const limitCheck = useQuery(api.intentions.checkLimit, { areaId });
 
   const form = useForm<IntentionFormData>({
-    resolver: zodResolver(intentionFormSchema),
     defaultValues: defaultValues || {
       title: "",
       description: "",
