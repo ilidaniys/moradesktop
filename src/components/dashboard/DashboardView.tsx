@@ -101,7 +101,7 @@ export function DashboardView({ plan }: DashboardViewProps) {
   };
 
   return (
-    <div className="space-y-6">
+    <div>
       {/* Header */}
       <DashboardHeader
         date={plan.date}
@@ -111,35 +111,37 @@ export function DashboardView({ plan }: DashboardViewProps) {
         isCompleting={isCompleting}
       />
 
-      {/* Progress Section */}
-      {stats && <PlanProgress stats={stats} />}
+      <div className="space-y-6">
+        {/* Progress Section */}
+        {stats && <PlanProgress stats={stats} />}
 
-      {/* Active Item Card */}
-      {activeItem && (
+        {/* Active Item Card */}
+        {activeItem && (
+          <div className="space-y-2">
+            <h2 className="text-foreground text-lg font-medium">
+              Currently Working On
+            </h2>
+            <ActiveItemCard
+              item={activeItem}
+              onPause={pauseItem}
+              onComplete={completeItem}
+              isLoading={isLoading}
+            />
+          </div>
+        )}
+
+        {/* Items List */}
         <div className="space-y-2">
-          <h2 className="text-foreground text-lg font-medium">
-            Currently Working On
-          </h2>
-          <ActiveItemCard
-            item={activeItem}
-            onPause={pauseItem}
-            onComplete={completeItem}
+          <h2 className="text-foreground text-lg font-medium">Your Tasks</h2>
+          <PlanItemsList
+            pendingItems={pendingItems}
+            completedItems={completedItems}
+            skippedItems={skippedItems}
+            onStart={startItem}
+            onSkip={skipItem}
             isLoading={isLoading}
           />
         </div>
-      )}
-
-      {/* Items List */}
-      <div className="space-y-2">
-        <h2 className="text-foreground text-lg font-medium">Your Tasks</h2>
-        <PlanItemsList
-          pendingItems={pendingItems}
-          completedItems={completedItems}
-          skippedItems={skippedItems}
-          onStart={startItem}
-          onSkip={skipItem}
-          isLoading={isLoading}
-        />
       </div>
 
       {/* Complete Plan Dialog */}

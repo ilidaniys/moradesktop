@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, CheckCircle2, Clock } from "lucide-react";
+import { AlertTriangle, CheckCircle2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -26,7 +26,10 @@ interface CompletePlanDialogProps {
     timeUsed: number;
     timeBudget: number;
   };
-  onComplete: (perceivedLoad: "light" | "normal" | "heavy", notes?: string) => void;
+  onComplete: (
+    perceivedLoad: "light" | "normal" | "heavy",
+    notes?: string,
+  ) => void;
   isCompleting: boolean;
 }
 
@@ -37,7 +40,9 @@ export function CompletePlanDialog({
   onComplete,
   isCompleting,
 }: CompletePlanDialogProps) {
-  const [perceivedLoad, setPerceivedLoad] = useState<"light" | "normal" | "heavy">("normal");
+  const [perceivedLoad, setPerceivedLoad] = useState<
+    "light" | "normal" | "heavy"
+  >("normal");
   const [notes, setNotes] = useState("");
 
   const handleComplete = () => {
@@ -52,7 +57,9 @@ export function CompletePlanDialog({
   };
 
   const hasPendingItems = stats.pendingItems > 0;
-  const completionRate = Math.round((stats.completedItems / stats.totalItems) * 100);
+  const completionRate = Math.round(
+    (stats.completedItems / stats.totalItems) * 100,
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -69,13 +76,14 @@ export function CompletePlanDialog({
 
         <div className="space-y-6">
           {/* Summary Stats */}
-          <div className="space-y-3 rounded-lg bg-muted/50 p-4">
+          <div className="bg-muted/50 space-y-3 rounded-lg p-4">
             <h4 className="text-foreground text-sm font-medium">Summary</h4>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted">Tasks Completed</span>
                 <span className="text-foreground font-medium">
-                  {stats.completedItems} / {stats.totalItems} ({completionRate}%)
+                  {stats.completedItems} / {stats.totalItems} ({completionRate}
+                  %)
                 </span>
               </div>
               {stats.skippedItems > 0 && (
@@ -100,9 +108,12 @@ export function CompletePlanDialog({
             <div className="flex gap-3 rounded-lg bg-orange-50 p-3 text-sm text-orange-700">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
               <div>
-                <p className="font-medium">You have {stats.pendingItems} pending task(s)</p>
+                <p className="font-medium">
+                  You have {stats.pendingItems} pending task(s)
+                </p>
                 <p className="mt-1 text-xs">
-                  These tasks will remain in your plan but won't be tracked as completed.
+                  These tasks will remain in your plan but won&#39;t be tracked
+                  as completed.
                 </p>
               </div>
             </div>
@@ -120,7 +131,7 @@ export function CompletePlanDialog({
               }
             >
               <div className="space-y-2">
-                <div className="flex items-center space-x-3 rounded-lg border border-border p-3 hover:bg-muted/50">
+                <div className="border-border hover:bg-muted/50 flex items-center space-x-3 rounded-lg border p-3">
                   <RadioGroupItem value="light" id="light" />
                   <Label
                     htmlFor="light"
@@ -133,7 +144,7 @@ export function CompletePlanDialog({
                   </Label>
                 </div>
 
-                <div className="flex items-center space-x-3 rounded-lg border border-border p-3 hover:bg-muted/50">
+                <div className="border-border hover:bg-muted/50 flex items-center space-x-3 rounded-lg border p-3">
                   <RadioGroupItem value="normal" id="normal" />
                   <Label
                     htmlFor="normal"
@@ -146,7 +157,7 @@ export function CompletePlanDialog({
                   </Label>
                 </div>
 
-                <div className="flex items-center space-x-3 rounded-lg border border-border p-3 hover:bg-muted/50">
+                <div className="border-border hover:bg-muted/50 flex items-center space-x-3 rounded-lg border p-3">
                   <RadioGroupItem value="heavy" id="heavy" />
                   <Label
                     htmlFor="heavy"
@@ -186,10 +197,7 @@ export function CompletePlanDialog({
           >
             Cancel
           </Button>
-          <Button
-            onClick={handleComplete}
-            disabled={isCompleting}
-          >
+          <Button onClick={handleComplete} disabled={isCompleting}>
             <CheckCircle2 className="mr-2 h-4 w-4" />
             {isCompleting ? "Completing..." : "Complete Plan"}
           </Button>

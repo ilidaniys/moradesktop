@@ -142,7 +142,7 @@ export const getActiveForToday = query({
     }
 
     // Get today's date in YYYY-MM-DD format
-    const today = new Date().toISOString().split("T")[0];
+    const today = new Date().toISOString().split("T")[0]!;
 
     const dayPlan = await ctx.db
       .query("dayPlans")
@@ -152,7 +152,7 @@ export const getActiveForToday = query({
       .first();
 
     // Only return if plan is active
-    if (!dayPlan || dayPlan.status !== "active") {
+    if (dayPlan?.status !== "active") {
       return null;
     }
 
@@ -206,7 +206,7 @@ export const getActiveDayPlanStats = query({
     }
 
     // Get today's date in YYYY-MM-DD format
-    const today = new Date().toISOString().split("T")[0];
+    const today = new Date().toISOString().split("T")[0]!;
 
     const dayPlan = await ctx.db
       .query("dayPlans")
@@ -216,7 +216,7 @@ export const getActiveDayPlanStats = query({
       .first();
 
     // Only return if plan is active
-    if (!dayPlan || dayPlan.status !== "active") {
+    if (dayPlan?.status !== "active") {
       return null;
     }
 
@@ -241,8 +241,9 @@ export const getActiveDayPlanStats = query({
     const totalItems = items.length;
     const completedItems = items.filter((i) => i.status === "completed").length;
     const skippedItems = items.filter((i) => i.status === "skipped").length;
-    const inProgressItems = items.filter((i) => i.status === "inProgress")
-      .length;
+    const inProgressItems = items.filter(
+      (i) => i.status === "inProgress",
+    ).length;
     const pendingItems = items.filter((i) => i.status === "pending").length;
 
     // Calculate time statistics
@@ -724,5 +725,261 @@ export const complete = mutation({
       perceivedLoad: args.perceivedLoad,
       notes: args.notes,
     });
+  },
+});
+
+export const listAllPlans = query({
+  args: {
+    limit: v.optional(v.number()),
+    offset: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      return null;
+    }
+
+    // Get all plans for the user
+    const plans = await ctx.db
+      .query("dayPlans")
+      .withIndex("by_user", (q) => q.eq("userId", identity.subject))
+      .collect();
+
+    // Sort by date descending (newest first)
+    plans.sort((a, b) => b.date.localeCompare(a.date));
+
+    // Apply pagination
+    const limit = args.limit || 50;
+    const offset = args.offset || 0;
+    const paginatedPlans = plans.slice(offset, offset + limit);
+
+    // For each plan, get item count and total duration
+    const plansWithMetadata = await Promise.all(
+      paginatedPlans.map(async (plan) => {
+        const items = await ctx.db
+          .query("dayPlanItems")
+          .withIndex("by_dayPlan", (q) => q.eq("dayPlanId", plan._id))
+          .collect();
+
+        const itemsWithChunks = await Promise.all(
+          items.map(async (item) => {
+            const chunk = await ctx.db.get(item.chunkId);
+            return { ...item, chunk };
+          }),
+        );
+
+        const totalDuration = itemsWithChunks.reduce(
+          (sum, item) => sum + (item.chunk?.durationMin || 0),
+          0,
+        );
+
+        const completedCount = items.filter(
+          (i) => i.status === "completed",
+        ).length;
+
+        return {
+          ...plan,
+          itemCount: items.length,
+          totalDuration,
+          completedCount,
+        };
+      }),
+    );
+
+    return plansWithMetadata;
+  },
+});
+
+export const getUpcomingPlans = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      return null;
+    }
+
+    const today = new Date().toISOString().split("T")[0]!;
+
+    const plans = await ctx.db
+      .query("dayPlans")
+      .withIndex("by_user", (q) => q.eq("userId", identity.subject))
+      .collect();
+
+    // Filter for future dates and sort
+    const upcomingPlans = plans
+      .filter((plan) => plan.date >= today)
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    // Add metadata
+    const plansWithMetadata = await Promise.all(
+      upcomingPlans.map(async (plan) => {
+        const items = await ctx.db
+          .query("dayPlanItems")
+          .withIndex("by_dayPlan", (q) => q.eq("dayPlanId", plan._id))
+          .collect();
+
+        const itemsWithChunks = await Promise.all(
+          items.map(async (item) => {
+            const chunk = await ctx.db.get(item.chunkId);
+            return { ...item, chunk };
+          }),
+        );
+
+        const totalDuration = itemsWithChunks.reduce(
+          (sum, item) => sum + (item.chunk?.durationMin || 0),
+          0,
+        );
+
+        const completedCount = items.filter(
+          (i) => i.status === "completed",
+        ).length;
+
+        return {
+          ...plan,
+          itemCount: items.length,
+          totalDuration,
+          completedCount,
+        };
+      }),
+    );
+
+    return plansWithMetadata;
+  },
+});
+
+export const deletePlan = mutation({
+  args: {
+    dayPlanId: v.id("dayPlans"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const dayPlan = await ctx.db.get(args.dayPlanId);
+    if (!dayPlan || dayPlan.userId !== (identity.subject as any)) {
+      throw new Error("Day plan not found or access denied");
+    }
+
+    // Get all items in the plan
+    const items = await ctx.db
+      .query("dayPlanItems")
+      .withIndex("by_dayPlan", (q) => q.eq("dayPlanId", args.dayPlanId))
+      .collect();
+
+    // Update chunk status back to ready for all items
+    for (const item of items) {
+      const chunk = await ctx.db.get(item.chunkId);
+      if (chunk?.status === "inPlan") {
+        await ctx.db.patch(item.chunkId, {
+          status: "ready",
+        });
+      }
+      // Delete the item
+      await ctx.db.delete(item._id);
+    }
+
+    // Delete the plan
+    await ctx.db.delete(args.dayPlanId);
+  },
+});
+
+export const duplicatePlan = mutation({
+  args: {
+    sourcePlanId: v.id("dayPlans"),
+    targetDate: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    // Get source plan
+    const sourcePlan = await ctx.db.get(args.sourcePlanId);
+    if (!sourcePlan || sourcePlan.userId !== (identity.subject as any)) {
+      throw new Error("Source plan not found or access denied");
+    }
+
+    // Check if a plan already exists for target date
+    const existingPlan = await ctx.db
+      .query("dayPlans")
+      .withIndex("by_user_date", (q) =>
+        q.eq("userId", identity.subject).eq("date", args.targetDate),
+      )
+      .first();
+
+    if (existingPlan) {
+      throw new Error("A plan already exists for the target date");
+    }
+
+    // Create new plan
+    const newPlanId = await ctx.db.insert("dayPlans", {
+      userId: identity.subject as any,
+      date: args.targetDate,
+      timeBudget: sourcePlan.timeBudget,
+      energyMode: sourcePlan.energyMode,
+      notes: sourcePlan.notes,
+      status: "draft",
+    });
+
+    // Get all items from source plan
+    const sourceItems = await ctx.db
+      .query("dayPlanItems")
+      .withIndex("by_dayPlan", (q) => q.eq("dayPlanId", args.sourcePlanId))
+      .collect();
+
+    // Sort by order
+    sourceItems.sort((a, b) => a.order - b.order);
+
+    // Copy items to new plan (only if chunks are still available)
+    for (const item of sourceItems) {
+      const chunk = await ctx.db.get(item.chunkId);
+
+      // Only copy if chunk exists and is not done
+      if (chunk && chunk.status !== "done") {
+        await ctx.db.insert("dayPlanItems", {
+          dayPlanId: newPlanId,
+          chunkId: item.chunkId,
+          order: item.order,
+          locked: item.locked,
+          status: "pending",
+          aiReason: item.aiReason,
+        });
+      }
+    }
+
+    return newPlanId;
+  },
+});
+
+export const updatePlan = mutation({
+  args: {
+    dayPlanId: v.id("dayPlans"),
+    timeBudget: v.optional(v.number()),
+    energyMode: v.optional(
+      v.union(v.literal("deep"), v.literal("normal"), v.literal("light")),
+    ),
+    notes: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const dayPlan = await ctx.db.get(args.dayPlanId);
+    if (!dayPlan || dayPlan.userId !== (identity.subject as any)) {
+      throw new Error("Day plan not found or access denied");
+    }
+
+    const updates: any = {};
+    if (args.timeBudget !== undefined) updates.timeBudget = args.timeBudget;
+    if (args.energyMode !== undefined) updates.energyMode = args.energyMode;
+    if (args.notes !== undefined) updates.notes = args.notes;
+
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+    await ctx.db.patch(args.dayPlanId, updates);
   },
 });

@@ -40,13 +40,13 @@ export function DashboardHeader({
   const energy = energyConfig[energyMode];
 
   return (
-    <div className="border-border space-y-4 border-b pb-6">
+    <div className="border-border mb-6 space-y-4 border-b pb-6">
       {/* Date */}
       <div>
-        <h1 className="text-foreground text-3xl font-semibold">
+        <h1 className="text-primary text-2xl font-medium">
           {formatDate(date)}
         </h1>
-        <p className="text-muted mt-1 text-sm">Your day plan</p>
+        <p className="text-secondary mt-1 text-sm">Your day plan</p>
       </div>
 
       {/* Metadata and Actions */}
@@ -68,11 +68,7 @@ export function DashboardHeader({
         </div>
 
         {/* Complete Plan Button */}
-        <Button
-          size="lg"
-          onClick={onCompletePlan}
-          disabled={isCompleting}
-        >
+        <Button size="lg" onClick={onCompletePlan} disabled={isCompleting}>
           <CheckCircle2 className="mr-2 h-5 w-5" />
           {isCompleting ? "Completing..." : "Complete Plan"}
         </Button>

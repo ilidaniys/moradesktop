@@ -62,10 +62,7 @@ export function PlanProgress({ stats }: PlanProgressProps) {
               {stats.completionPercentage}%
             </span>
           </div>
-          <Progress
-            value={stats.completionPercentage}
-            className="h-3"
-          />
+          <Progress value={stats.completionPercentage} className="h-3" />
         </div>
 
         {/* Stats Grid */}
@@ -80,9 +77,7 @@ export function PlanProgress({ stats }: PlanProgressProps) {
               <span className="text-foreground text-2xl font-semibold">
                 {stats.completedItems}
               </span>
-              <span className="text-muted text-sm">
-                / {stats.totalItems}
-              </span>
+              <span className="text-muted text-sm">/ {stats.totalItems}</span>
             </div>
             <p className="text-muted text-xs">
               {stats.pendingItems} pending
@@ -98,10 +93,7 @@ export function PlanProgress({ stats }: PlanProgressProps) {
             </div>
             <div className="flex items-baseline gap-2">
               <span
-                className={cn(
-                  "text-2xl font-semibold",
-                  getTimeStatusColor(),
-                )}
+                className={cn("text-2xl font-semibold", getTimeStatusColor())}
               >
                 {formatTime(stats.timeUsed)}
               </span>
@@ -130,9 +122,7 @@ export function PlanProgress({ stats }: PlanProgressProps) {
                 {formatTime(Math.abs(stats.timeRemaining))}
               </span>
               {stats.timeRemaining < 0 && (
-                <span className="text-red-600 text-xs font-medium">
-                  over
-                </span>
+                <span className="text-xs font-medium text-red-600">over</span>
               )}
             </div>
             <p className="text-muted text-xs">
@@ -146,8 +136,8 @@ export function PlanProgress({ stats }: PlanProgressProps) {
         {/* Status Message */}
         {stats.timeUsed > stats.timeBudget && (
           <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
-            ⚠️ You've exceeded your time budget. Consider wrapping up remaining
-            tasks.
+            ⚠️ You&#39;ve exceeded your time budget. Consider wrapping up
+            remaining tasks.
           </div>
         )}
         {stats.completionPercentage === 100 && (

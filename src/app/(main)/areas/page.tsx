@@ -27,8 +27,8 @@ export default function AreasPage() {
     <div>
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Areas</h1>
-          <p className="text-muted-foreground mt-1 text-sm">
+          <h1 className="text-primary text-2xl font-medium">Areas</h1>
+          <p className="text-secondary mt-1 text-sm">
             Manage your long-term domains of responsibility
           </p>
         </div>

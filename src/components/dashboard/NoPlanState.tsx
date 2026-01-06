@@ -7,7 +7,7 @@ import { Card, CardContent } from "~/components/ui/card";
 
 export function NoPlanState() {
   return (
-    <div className="flex h-full items-center justify-center p-6">
+    <div className="flex h-full items-center justify-center">
       <Card className="max-w-md">
         <CardContent className="flex flex-col items-center space-y-6 p-12 text-center">
           <div className="bg-muted flex h-20 w-20 items-center justify-center rounded-full">
@@ -19,8 +19,8 @@ export function NoPlanState() {
               No Active Plan Today
             </h2>
             <p className="text-muted max-w-sm text-sm">
-              You haven't finalized a day plan yet. Create and finalize a plan
-              in the Day Builder to start working on your tasks.
+              You haven&#39;t finalized a day plan yet. Create and finalize a
+              plan in the Day Builder to start working on your tasks.
             </p>
           </div>
 

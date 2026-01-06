@@ -1,8 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { CheckCircle2, LayoutDashboard, Plus, Save, Sparkles } from "lucide-react";
+import {
+  CheckCircle2,
+  LayoutDashboard,
+  Plus,
+  Save,
+  Sparkles,
+} from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { EmptyState } from "~/components/shared/EmptyState";
@@ -17,6 +23,7 @@ import { api } from "../../../convex/_generated/api";
 import { toast } from "sonner";
 import { useBuildDayPlan } from "~/hooks/useBuildDayPlan";
 import type { BuildDayPlanOutput } from "~/lib/ai/types";
+import { useRouter } from "next/navigation";
 
 type EnergyMode = "deep" | "normal" | "light";
 
@@ -33,7 +40,17 @@ interface PlanItem {
   order: number;
 }
 
-export function DayPlanBuilder() {
+interface DayPlanBuilderProps {
+  selectedPlanId: Id<"dayPlans"> | null;
+  selectedDate: string; // YYYY-MM-DD
+  onPlanCreated?: (planId: Id<"dayPlans">) => void;
+}
+
+export function DayPlanBuilder({
+  selectedPlanId,
+  selectedDate,
+  onPlanCreated,
+}: DayPlanBuilderProps) {
   const [timeBudget, setTimeBudget] = useState(480); // 8 hours default
   const [energyMode, setEnergyMode] = useState<EnergyMode>("normal");
   const [maxTasks, setMaxTasks] = useState(5);
@@ -41,7 +58,10 @@ export function DayPlanBuilder() {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [dayPlanId, setDayPlanId] = useState<Id<"dayPlans"> | null>(null);
   const [showAISuggestions, setShowAISuggestions] = useState(false);
-  const [aiSuggestions, setAiSuggestions] = useState<BuildDayPlanOutput | null>(null);
+  const [aiSuggestions, setAiSuggestions] = useState<BuildDayPlanOutput | null>(
+    null,
+  );
+  const router = useRouter();
 
   const createDayPlan = useMutation(api.dayPlans.create);
   const addItemMutation = useMutation(api.dayPlans.addItem);
@@ -50,21 +70,22 @@ export function DayPlanBuilder() {
 
   const { buildDayPlan, isLoading: isGeneratingPlan } = useBuildDayPlan();
 
-  // Get today's date in YYYY-MM-DD format
-  const today = useMemo(() => {
-    const date = new Date();
-    return date.toISOString().split("T")[0]!;
-  }, []);
-
-  const existingPlan = useQuery(api.dayPlans.getByDate, { date: today ?? "" });
+  // Query plan by ID if selectedPlanId is provided, otherwise query by date
+  const existingPlanById = useQuery(
+    api.dayPlans.get,
+    selectedPlanId ? { dayPlanId: selectedPlanId } : "skip",
+  );
+  const existingPlanByDate = useQuery(
+    api.dayPlans.getByDate,
+    !selectedPlanId ? { date: selectedDate } : "skip",
+  );
+  const existingPlan = selectedPlanId ? existingPlanById : existingPlanByDate;
   const readyChunks = useQuery(api.chunks.listReadyChunks);
 
   // Initialize from existing plan if available
   useEffect(() => {
     if (existingPlan) {
-      if (!dayPlanId) {
-        setDayPlanId(existingPlan._id);
-      }
+      setDayPlanId(existingPlan._id);
       setTimeBudget(existingPlan.timeBudget);
       setEnergyMode(existingPlan.energyMode as EnergyMode);
 
@@ -83,9 +104,17 @@ export function DayPlanBuilder() {
           order: item.order,
         }));
         setItems(loadedItems);
+      } else {
+        setItems([]);
       }
+    } else {
+      // Reset state when switching to a date without a plan
+      setDayPlanId(null);
+      setTimeBudget(480);
+      setEnergyMode("normal");
+      setItems([]);
     }
-  }, [existingPlan, dayPlanId]);
+  }, [existingPlan, selectedPlanId, selectedDate]);
 
   // Calculate used minutes
   const usedMinutes = items.reduce(
@@ -99,11 +128,17 @@ export function DayPlanBuilder() {
   const handleCreatePlan = async () => {
     try {
       const planId = await createDayPlan({
-        date: today,
+        date: selectedDate,
         timeBudget: timeBudget,
         energyMode,
       });
       setDayPlanId(planId);
+
+      // Call the callback to update parent state
+      if (onPlanCreated) {
+        onPlanCreated(planId);
+      }
+
       return planId;
     } catch (error) {
       console.log(error);
@@ -121,6 +156,7 @@ export function DayPlanBuilder() {
         dayPlanId,
       });
       toast.success("Plan finalized");
+      router.push("/dashboard");
     } catch (error) {
       toast.error("Failed to finalize plan");
     }
@@ -231,7 +267,9 @@ export function DayPlanBuilder() {
       intentionTitle: chunk.intention?.title,
     }));
 
-    const lockedChunkIds = items.filter((item) => item.locked).map((item) => item.id);
+    const lockedChunkIds = items
+      .filter((item) => item.locked)
+      .map((item) => item.id);
 
     console.log("Calling buildDayPlan with:", {
       timeBudgetMin: timeBudget,
@@ -318,14 +356,16 @@ export function DayPlanBuilder() {
   return (
     <div className="space-y-6">
       {/* Controls */}
-      <DayPlanControls
-        timeBudget={timeBudget}
-        energyMode={energyMode}
-        maxTasks={maxTasks}
-        onTimeBudgetChange={setTimeBudget}
-        onEnergyModeChange={setEnergyMode}
-        onMaxTasksChange={setMaxTasks}
-      />
+      <div className={isGeneratingPlan ? "pointer-events-none opacity-50" : ""}>
+        <DayPlanControls
+          timeBudget={timeBudget}
+          energyMode={energyMode}
+          maxTasks={maxTasks}
+          onTimeBudgetChange={setTimeBudget}
+          onEnergyModeChange={setEnergyMode}
+          onMaxTasksChange={setMaxTasks}
+        />
+      </div>
 
       {/* Time Budget Indicator */}
       <TimeBudgetIndicator
@@ -340,18 +380,38 @@ export function DayPlanBuilder() {
           <Button
             onClick={() => setShowAddDialog(true)}
             size="sm"
-            disabled={items.length >= maxTasks}
+            disabled={items.length >= maxTasks || isGeneratingPlan}
           >
             <Plus className="mr-2 h-4 w-4" />
             Add Chunk
           </Button>
         </CardHeader>
         <CardContent>
-          {items.length === 0 ? (
+          {isGeneratingPlan ? (
+            <div className="flex flex-col items-center justify-center py-20">
+              <LoadingSpinner
+                size="lg"
+                text="AI is crafting your perfect day..."
+              />
+            </div>
+          ) : items.length === 0 ? (
             <EmptyState
               icon={LayoutDashboard}
               title="No chunks yet"
-              description="Add ready chunks to build your day plan"
+              description="Add ready chunks to build your day plan or use AI to generate a balanced schedule."
+              action={
+                <Button
+                  variant="outline"
+                  size="lg"
+                  onClick={handleGenerateWithAI}
+                  disabled={
+                    isGeneratingPlan || !readyChunks || readyChunks.length === 0
+                  }
+                >
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  {isGeneratingPlan ? "Generating..." : "Generate with AI"}
+                </Button>
+              }
             />
           ) : (
             <SortablePlanItems
@@ -365,24 +425,19 @@ export function DayPlanBuilder() {
       </Card>
 
       {/* Actions */}
-      <div className="flex justify-between gap-3">
-        <Button
-          variant="outline"
-          size="lg"
-          onClick={handleGenerateWithAI}
-          disabled={isGeneratingPlan || !readyChunks || readyChunks.length === 0}
-        >
-          <Sparkles className="mr-2 h-4 w-4" />
-          {isGeneratingPlan ? "Generating..." : "Generate with AI"}
-        </Button>
-
+      <div className="flex justify-end gap-3">
         {items.length > 0 && (
           <div className="flex gap-3">
-            <Button variant="outline" size="lg">
+            <Button variant="outline" size="lg" disabled={isGeneratingPlan}>
               <Save className="mr-2 h-4 w-4" />
               Save Draft
             </Button>
-            <Button variant={"default"} size="lg" onClick={handleFinalizePlan}>
+            <Button
+              variant={"default"}
+              size="lg"
+              onClick={handleFinalizePlan}
+              disabled={isGeneratingPlan}
+            >
               <CheckCircle2 className="mr-2 h-4 w-4" />
               Finalize Plan
             </Button>
