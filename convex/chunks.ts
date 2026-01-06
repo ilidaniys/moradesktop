@@ -14,8 +14,8 @@ export const create = mutation({
         v.literal("ready"),
         v.literal("inPlan"),
         v.literal("inProgress"),
-        v.literal("done")
-      )
+        v.literal("done"),
+      ),
     ),
   },
   handler: async (ctx, args) => {
@@ -64,7 +64,7 @@ export const createBatch = mutation({
         dod: v.string(),
         durationMin: v.number(),
         tags: v.optional(v.array(v.string())),
-      })
+      }),
     ),
   },
   handler: async (ctx, args) => {
@@ -85,18 +85,18 @@ export const createBatch = mutation({
       // Validate each chunk
       if (chunk.durationMin < 30 || chunk.durationMin > 120) {
         throw new Error(
-          `Chunk "${chunk.title}": Duration must be between 30 and 120 minutes`
+          `Chunk "${chunk.title}": Duration must be between 30 and 120 minutes`,
         );
       }
 
       if (!chunk.dod || chunk.dod.trim().length === 0) {
         throw new Error(
-          `Chunk "${chunk.title}": Definition of Done cannot be empty`
+          `Chunk "${chunk.title}": Definition of Done cannot be empty`,
         );
       }
 
       const chunkId = await ctx.db.insert("chunks", {
-        userId: identity.subject as any,
+        userId: identity.subject,
         areaId: intention.areaId,
         intentionId: args.intentionId,
         title: chunk.title,
@@ -128,7 +128,7 @@ export const update = mutation({
     }
 
     const chunk = await ctx.db.get(args.chunkId);
-    if (!chunk || chunk.userId !== (identity.subject as any)) {
+    if (chunk?.userId !== identity.subject) {
       throw new Error("Chunk not found or access denied");
     }
 
@@ -141,7 +141,7 @@ export const update = mutation({
     }
 
     // Validate DoD if provided
-    if (args.dod !== undefined && args.dod.trim().length === 0) {
+    if (args.dod?.trim().length === 0) {
       throw new Error("Definition of Done cannot be empty");
     }
 
@@ -163,7 +163,7 @@ export const updateStatus = mutation({
       v.literal("ready"),
       v.literal("inPlan"),
       v.literal("inProgress"),
-      v.literal("done")
+      v.literal("done"),
     ),
   },
   handler: async (ctx, args) => {
@@ -202,8 +202,8 @@ export const listByIntention = query({
         v.literal("ready"),
         v.literal("inPlan"),
         v.literal("inProgress"),
-        v.literal("done")
-      )
+        v.literal("done"),
+      ),
     ),
   },
   handler: async (ctx, args) => {
@@ -214,7 +214,7 @@ export const listByIntention = query({
 
     // Verify intention belongs to user
     const intention = await ctx.db.get(args.intentionId);
-    if (!intention || intention.userId !== (identity.subject as any)) {
+    if (intention?.userId !== identity.subject) {
       return [];
     }
 
@@ -224,14 +224,12 @@ export const listByIntention = query({
       .collect();
 
     // Filter by status if provided
-    let filteredChunks = args.status
+    const filteredChunks = args.status
       ? chunks.filter((c) => c.status === args.status)
       : chunks;
 
     // Sort by creation time (most recent first)
-    return filteredChunks.sort(
-      (a, b) => b._creationTime - a._creationTime
-    );
+    return filteredChunks.sort((a, b) => b._creationTime - a._creationTime);
   },
 });
 
@@ -247,7 +245,7 @@ export const listReadyChunks = query({
     const chunks = await ctx.db
       .query("chunks")
       .withIndex("by_user_status", (q) =>
-        q.eq("userId", identity.subject as any).eq("status", "ready")
+        q.eq("userId", identity.subject).eq("status", "ready"),
       )
       .collect();
 
@@ -276,7 +274,7 @@ export const listReadyChunks = query({
               }
             : null,
         };
-      })
+      }),
     );
 
     return chunksWithContext;
@@ -299,5 +297,86 @@ export const remove = mutation({
     }
 
     await ctx.db.delete(args.chunkId);
+  },
+});
+
+export const split = mutation({
+  args: {
+    chunkId: v.id("chunks"),
+    parts: v.array(
+      v.object({
+        title: v.string(),
+        dod: v.string(),
+        durationMin: v.number(),
+        tags: v.optional(v.array(v.string())),
+      }),
+    ),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const originalChunk = await ctx.db.get(args.chunkId);
+    if (originalChunk?.userId !== identity.subject) {
+      throw new Error("Chunk not found or access denied");
+    }
+
+    // Validate parts
+    if (args.parts.length < 2) {
+      throw new Error("Must split into at least 2 parts");
+    }
+
+    for (const part of args.parts) {
+      if (part.durationMin < 30 || part.durationMin > 120) {
+        throw new Error(
+          `Part "${part.title}": Duration must be between 30 and 120 minutes`,
+        );
+      }
+
+      if (!part.dod || part.dod.trim().length === 0) {
+        throw new Error(
+          `Part "${part.title}": Definition of Done cannot be empty`,
+        );
+      }
+    }
+
+    // Mark original chunk as done
+    await ctx.db.patch(args.chunkId, {
+      status: "done",
+      completedAt: Date.now(),
+    });
+
+    // Update area's lastTouchedAt
+    await ctx.db.patch(originalChunk.areaId, {
+      lastTouchedAt: Date.now(),
+    });
+
+    // Create new chunks
+    const newChunkIds = [];
+    for (const part of args.parts) {
+      const newChunkId = await ctx.db.insert("chunks", {
+        userId: identity.subject,
+        areaId: originalChunk.areaId,
+        intentionId: originalChunk.intentionId,
+        title: part.title,
+        dod: part.dod,
+        durationMin: part.durationMin,
+        status: "ready", // New chunks start as ready
+        tags: part.tags || originalChunk.tags, // Inherit tags if not specified
+      });
+
+      newChunkIds.push(newChunkId);
+    }
+
+    // Record the split
+    await ctx.db.insert("chunkSplits", {
+      originalChunkId: args.chunkId,
+      newChunkIds,
+      createdAt: new Date().getDate(),
+    });
+
+    return newChunkIds;
   },
 });

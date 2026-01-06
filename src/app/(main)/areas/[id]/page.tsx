@@ -25,6 +25,8 @@ export default function AreaDetailPage() {
   const [isIntentionCreateOpen, setIsIntentionCreateOpen] = useState(false);
 
   const area = useQuery(api.areas.get, { areaId });
+
+  //todo: combine it in one request
   const activeIntentions = useQuery(api.intentions.listByArea, {
     areaId,
     status: "active",
@@ -144,6 +146,7 @@ export default function AreaDetailPage() {
               <IntentionSection
                 key={intention._id}
                 intention={intention}
+                areaTitle={area.title}
                 defaultExpanded={true}
               />
             ))}
@@ -162,6 +165,7 @@ export default function AreaDetailPage() {
               <IntentionSection
                 key={intention._id}
                 intention={intention}
+                areaTitle={area.title}
                 defaultExpanded={false}
               />
             ))}
@@ -180,6 +184,7 @@ export default function AreaDetailPage() {
               <IntentionSection
                 key={intention._id}
                 intention={intention}
+                areaTitle={area.title}
                 defaultExpanded={false}
               />
             ))}

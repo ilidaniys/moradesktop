@@ -744,16 +744,6 @@ GEMINI_MODEL=gemini-2.0-flash-exp
 - [ ] Test dark mode across all screens
 - [ ] Test offline detection
 
-### Environment & Deployment
-
-- [ ] Add Gemini API key to `.env.local`
-- [ ] Update `.env.example` with all variables
-- [ ] Deploy Convex schema: `npx convex deploy`
-- [ ] Deploy to Vercel production
-- [ ] Verify all env vars set in Vercel
-- [ ] Test production build locally
-- [ ] Monitor Convex logs for errors
-
 ---
 
 ## Already Completed ✅

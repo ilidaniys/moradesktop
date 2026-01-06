@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { CheckCircle2, LayoutDashboard, Plus, Save } from "lucide-react";
+import { CheckCircle2, LayoutDashboard, Plus, Save, Sparkles } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { EmptyState } from "~/components/shared/EmptyState";
@@ -11,9 +11,12 @@ import { DayPlanControls } from "./DayPlanControls";
 import { TimeBudgetIndicator } from "./TimeBudgetIndicator";
 import { SortablePlanItems } from "./SortablePlanItems";
 import { AddChunksDialog } from "./AddChunksDialog";
+import { AISuggestions } from "./AISuggestions";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { api } from "../../../convex/_generated/api";
 import { toast } from "sonner";
+import { useBuildDayPlan } from "~/hooks/useBuildDayPlan";
+import type { BuildDayPlanOutput } from "~/lib/ai/types";
 
 type EnergyMode = "deep" | "normal" | "light";
 
@@ -37,11 +40,15 @@ export function DayPlanBuilder() {
   const [items, setItems] = useState<PlanItem[]>([]);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [dayPlanId, setDayPlanId] = useState<Id<"dayPlans"> | null>(null);
+  const [showAISuggestions, setShowAISuggestions] = useState(false);
+  const [aiSuggestions, setAiSuggestions] = useState<BuildDayPlanOutput | null>(null);
 
   const createDayPlan = useMutation(api.dayPlans.create);
   const addItemMutation = useMutation(api.dayPlans.addItem);
   const removeItemMutation = useMutation(api.dayPlans.removeItem);
   const reorderItemsMutation = useMutation(api.dayPlans.reorderItems);
+
+  const { buildDayPlan, isLoading: isGeneratingPlan } = useBuildDayPlan();
 
   // Get today's date in YYYY-MM-DD format
   const today = useMemo(() => {
@@ -50,6 +57,7 @@ export function DayPlanBuilder() {
   }, []);
 
   const existingPlan = useQuery(api.dayPlans.getByDate, { date: today ?? "" });
+  const readyChunks = useQuery(api.chunks.listReadyChunks);
 
   // Initialize from existing plan if available
   useEffect(() => {
@@ -200,6 +208,103 @@ export function DayPlanBuilder() {
     }
   };
 
+  const handleGenerateWithAI = async () => {
+    console.log("handleGenerateWithAI called");
+
+    if (!readyChunks || readyChunks.length === 0) {
+      toast.error("No ready chunks available", {
+        description: "Add some ready chunks to your intentions first",
+      });
+      return;
+    }
+
+    // Prepare chunks for AI
+    const availableChunks = readyChunks.map((chunk) => ({
+      id: chunk._id,
+      chunkId: chunk._id,
+      title: chunk.title,
+      durationMin: chunk.durationMin,
+      tags: chunk.tags,
+      dod: chunk.dod,
+      areaTitle: chunk.area?.title || "Unknown",
+      areaWeight: chunk.area?.weight || 0,
+      intentionTitle: chunk.intention?.title,
+    }));
+
+    const lockedChunkIds = items.filter((item) => item.locked).map((item) => item.id);
+
+    console.log("Calling buildDayPlan with:", {
+      timeBudgetMin: timeBudget,
+      energyMode,
+      maxTasks,
+      availableChunksCount: availableChunks.length,
+      lockedChunkIds,
+    });
+
+    const result = await buildDayPlan({
+      timeBudgetMin: timeBudget,
+      energyMode,
+      maxTasks,
+      availableChunks,
+      lockedChunkIds,
+    });
+
+    console.log("buildDayPlan result:", result);
+
+    if (result) {
+      console.log("Setting AI suggestions:", result);
+      setAiSuggestions(result);
+      setShowAISuggestions(true);
+    } else {
+      console.log("buildDayPlan returned null");
+      toast.error("Failed to generate plan", {
+        description: "Please try again",
+      });
+    }
+  };
+
+  const handleAcceptAISuggestions = async () => {
+    if (!aiSuggestions) return;
+
+    let currentPlanId = dayPlanId;
+
+    if (!currentPlanId) {
+      currentPlanId = await handleCreatePlan();
+      if (!currentPlanId) return;
+    }
+
+    try {
+      // Remove all non-locked items
+      const itemsToRemove = items.filter((item) => !item.locked);
+      for (const item of itemsToRemove) {
+        await removeItemMutation({
+          itemId: item.id as Id<"dayPlanItems">,
+        });
+      }
+
+      // Add suggested items
+      for (const suggestion of aiSuggestions.suggestedItems) {
+        await addItemMutation({
+          dayPlanId: currentPlanId,
+          chunkId: suggestion.chunkId,
+        });
+      }
+
+      toast.success("AI plan applied", {
+        description: `Added ${aiSuggestions.suggestedItems.length} chunks to your plan`,
+      });
+
+      setShowAISuggestions(false);
+    } catch (error) {
+      toast.error("Failed to apply AI suggestions");
+    }
+  };
+
+  const handleRejectAISuggestions = () => {
+    setShowAISuggestions(false);
+    // Could trigger regeneration here if desired
+  };
+
   const isLoading = existingPlan === undefined;
 
   if (isLoading) {
@@ -260,18 +365,30 @@ export function DayPlanBuilder() {
       </Card>
 
       {/* Actions */}
-      {items.length > 0 && (
-        <div className="flex justify-end gap-3">
-          <Button variant="outline" size="lg">
-            <Save className="mr-2 h-4 w-4" />
-            Save Draft
-          </Button>
-          <Button variant={"default"} size="lg" onClick={handleFinalizePlan}>
-            <CheckCircle2 className="mr-2 h-4 w-4" />
-            Finalize Plan
-          </Button>
-        </div>
-      )}
+      <div className="flex justify-between gap-3">
+        <Button
+          variant="outline"
+          size="lg"
+          onClick={handleGenerateWithAI}
+          disabled={isGeneratingPlan || !readyChunks || readyChunks.length === 0}
+        >
+          <Sparkles className="mr-2 h-4 w-4" />
+          {isGeneratingPlan ? "Generating..." : "Generate with AI"}
+        </Button>
+
+        {items.length > 0 && (
+          <div className="flex gap-3">
+            <Button variant="outline" size="lg">
+              <Save className="mr-2 h-4 w-4" />
+              Save Draft
+            </Button>
+            <Button variant={"default"} size="lg" onClick={handleFinalizePlan}>
+              <CheckCircle2 className="mr-2 h-4 w-4" />
+              Finalize Plan
+            </Button>
+          </div>
+        )}
+      </div>
 
       {/* Add Chunks Dialog */}
       <AddChunksDialog
@@ -280,6 +397,25 @@ export function DayPlanBuilder() {
         onAddChunk={handleAddChunk}
         excludeChunkIds={excludeChunkIds}
       />
+
+      {/* AI Suggestions Dialog */}
+      {aiSuggestions && readyChunks && (
+        <AISuggestions
+          open={showAISuggestions}
+          onOpenChange={setShowAISuggestions}
+          suggestions={aiSuggestions}
+          availableChunks={readyChunks.map((chunk) => ({
+            chunkId: chunk._id,
+            title: chunk.title,
+            durationMin: chunk.durationMin,
+            tags: chunk.tags,
+            dod: chunk.dod,
+            areaTitle: chunk.area?.title || "Unknown",
+          }))}
+          onAccept={handleAcceptAISuggestions}
+          onReject={handleRejectAISuggestions}
+        />
+      )}
     </div>
   );
 }

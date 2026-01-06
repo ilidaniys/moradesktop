@@ -133,6 +133,154 @@ export const getByDate = query({
   },
 });
 
+export const getActiveForToday = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      return null;
+    }
+
+    // Get today's date in YYYY-MM-DD format
+    const today = new Date().toISOString().split("T")[0];
+
+    const dayPlan = await ctx.db
+      .query("dayPlans")
+      .withIndex("by_user_date", (q) =>
+        q.eq("userId", identity.subject).eq("date", today),
+      )
+      .first();
+
+    // Only return if plan is active
+    if (!dayPlan || dayPlan.status !== "active") {
+      return null;
+    }
+
+    // Get all items in the plan
+    const items = await ctx.db
+      .query("dayPlanItems")
+      .withIndex("by_dayPlan", (q) => q.eq("dayPlanId", dayPlan._id))
+      .collect();
+
+    // Fetch chunks with area and intention data for each item
+    const itemsWithChunks = await Promise.all(
+      items.map(async (item) => {
+        const chunk = await ctx.db.get(item.chunkId);
+        if (!chunk) {
+          return {
+            ...item,
+            chunk: null,
+            area: null,
+            intention: null,
+          };
+        }
+
+        const area = await ctx.db.get(chunk.areaId);
+        const intention = await ctx.db.get(chunk.intentionId);
+
+        return {
+          ...item,
+          chunk,
+          area,
+          intention,
+        };
+      }),
+    );
+
+    // Sort by order
+    itemsWithChunks.sort((a, b) => a.order - b.order);
+
+    return {
+      ...dayPlan,
+      items: itemsWithChunks,
+    };
+  },
+});
+
+export const getActiveDayPlanStats = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      return null;
+    }
+
+    // Get today's date in YYYY-MM-DD format
+    const today = new Date().toISOString().split("T")[0];
+
+    const dayPlan = await ctx.db
+      .query("dayPlans")
+      .withIndex("by_user_date", (q) =>
+        q.eq("userId", identity.subject).eq("date", today),
+      )
+      .first();
+
+    // Only return if plan is active
+    if (!dayPlan || dayPlan.status !== "active") {
+      return null;
+    }
+
+    // Get all items in the plan
+    const items = await ctx.db
+      .query("dayPlanItems")
+      .withIndex("by_dayPlan", (q) => q.eq("dayPlanId", dayPlan._id))
+      .collect();
+
+    // Fetch chunks for duration info
+    const itemsWithChunks = await Promise.all(
+      items.map(async (item) => {
+        const chunk = await ctx.db.get(item.chunkId);
+        return {
+          ...item,
+          chunk,
+        };
+      }),
+    );
+
+    // Calculate statistics
+    const totalItems = items.length;
+    const completedItems = items.filter((i) => i.status === "completed").length;
+    const skippedItems = items.filter((i) => i.status === "skipped").length;
+    const inProgressItems = items.filter((i) => i.status === "inProgress")
+      .length;
+    const pendingItems = items.filter((i) => i.status === "pending").length;
+
+    // Calculate time statistics
+    const totalPlannedTime = itemsWithChunks.reduce(
+      (sum, item) => sum + (item.chunk?.durationMin || 0),
+      0,
+    );
+
+    const timeUsed = items.reduce((sum, item) => {
+      if (item.status === "completed" && item.actualDurationMin) {
+        return sum + item.actualDurationMin;
+      }
+      return sum;
+    }, 0);
+
+    const timeRemaining = dayPlan.timeBudget - timeUsed;
+
+    // Calculate completion percentage
+    const completionPercentage =
+      totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
+
+    return {
+      totalItems,
+      completedItems,
+      skippedItems,
+      inProgressItems,
+      pendingItems,
+      totalPlannedTime,
+      timeUsed,
+      timeRemaining,
+      timeBudget: dayPlan.timeBudget,
+      completionPercentage,
+      energyMode: dayPlan.energyMode,
+      date: dayPlan.date,
+    };
+  },
+});
+
 export const addItem = mutation({
   args: {
     dayPlanId: v.id("dayPlans"),
@@ -232,6 +380,7 @@ export const updateItemStatus = mutation({
     itemId: v.id("dayPlanItems"),
     status: v.union(
       v.literal("pending"),
+      v.literal("inProgress"),
       v.literal("completed"),
       v.literal("skipped"),
       v.literal("moved"),
@@ -260,8 +409,9 @@ export const updateItemStatus = mutation({
       actualDurationMin: args.actualDurationMin,
     });
 
-    // If status is completed, update the chunk status as well
+    // Handle chunk status updates based on item status
     if (args.status === "completed") {
+      // If status is completed, update the chunk status as well
       await ctx.db.patch(item.chunkId, {
         status: "done",
         completedAt: Date.now(),
@@ -274,11 +424,31 @@ export const updateItemStatus = mutation({
           lastTouchedAt: Date.now(),
         });
       }
-    } else if (args.status === "moved" || args.status === "skipped") {
-      // If moved or skipped, chunk goes back to ready
+    } else if (args.status === "inProgress") {
+      // If status is inProgress, update chunk to inProgress
       await ctx.db.patch(item.chunkId, {
-        status: "ready",
+        status: "inProgress",
       });
+    } else if (
+      args.status === "moved" ||
+      args.status === "skipped" ||
+      args.status === "pending"
+    ) {
+      // If moved, skipped, or pending, update chunk based on context
+      const chunk = await ctx.db.get(item.chunkId);
+      if (chunk?.status === "done") {
+        // Don't change if already done
+      } else if (args.status === "pending") {
+        // Pending means it's still in the plan
+        await ctx.db.patch(item.chunkId, {
+          status: "inPlan",
+        });
+      } else {
+        // Moved or skipped, chunk goes back to ready
+        await ctx.db.patch(item.chunkId, {
+          status: "ready",
+        });
+      }
     }
 
     return args.itemId;
@@ -336,6 +506,188 @@ export const finalize = mutation({
       status: "active",
       finalizedAt: Date.now(),
     });
+  },
+});
+
+export const startItem = mutation({
+  args: {
+    itemId: v.id("dayPlanItems"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const item = await ctx.db.get(args.itemId);
+    if (!item) {
+      throw new Error("Day plan item not found");
+    }
+
+    // Verify day plan belongs to user
+    const dayPlan = await ctx.db.get(item.dayPlanId);
+    if (!dayPlan || dayPlan.userId !== (identity.subject as any)) {
+      throw new Error("Access denied");
+    }
+
+    // Ensure day plan is active
+    if (dayPlan.status !== "active") {
+      throw new Error("Day plan is not active");
+    }
+
+    // Find and pause any other in-progress items in this plan
+    const allItems = await ctx.db
+      .query("dayPlanItems")
+      .withIndex("by_dayPlan", (q) => q.eq("dayPlanId", item.dayPlanId))
+      .collect();
+
+    for (const otherItem of allItems) {
+      if (otherItem._id !== args.itemId && otherItem.status === "inProgress") {
+        await ctx.db.patch(otherItem._id, {
+          status: "pending",
+        });
+
+        // Update chunk status back to inPlan
+        await ctx.db.patch(otherItem.chunkId, {
+          status: "inPlan",
+        });
+      }
+    }
+
+    // Start this item
+    await ctx.db.patch(args.itemId, {
+      status: "inProgress",
+      startedAt: Date.now(),
+    });
+
+    // Update chunk status to inProgress
+    await ctx.db.patch(item.chunkId, {
+      status: "inProgress",
+    });
+
+    return args.itemId;
+  },
+});
+
+export const pauseItem = mutation({
+  args: {
+    itemId: v.id("dayPlanItems"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const item = await ctx.db.get(args.itemId);
+    if (!item) {
+      throw new Error("Day plan item not found");
+    }
+
+    // Verify day plan belongs to user
+    const dayPlan = await ctx.db.get(item.dayPlanId);
+    if (!dayPlan || dayPlan.userId !== (identity.subject as any)) {
+      throw new Error("Access denied");
+    }
+
+    // Only allow pausing items that are in progress
+    if (item.status !== "inProgress") {
+      throw new Error("Can only pause items that are in progress");
+    }
+
+    // Pause this item
+    await ctx.db.patch(args.itemId, {
+      status: "pending",
+    });
+
+    // Update chunk status back to inPlan
+    await ctx.db.patch(item.chunkId, {
+      status: "inPlan",
+    });
+
+    return args.itemId;
+  },
+});
+
+export const completeItem = mutation({
+  args: {
+    itemId: v.id("dayPlanItems"),
+    actualDurationMin: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const item = await ctx.db.get(args.itemId);
+    if (!item) {
+      throw new Error("Day plan item not found");
+    }
+
+    // Verify day plan belongs to user
+    const dayPlan = await ctx.db.get(item.dayPlanId);
+    if (!dayPlan || dayPlan.userId !== (identity.subject as any)) {
+      throw new Error("Access denied");
+    }
+
+    // Complete this item
+    await ctx.db.patch(args.itemId, {
+      status: "completed",
+      completedAt: Date.now(),
+      actualDurationMin: args.actualDurationMin,
+    });
+
+    // Update chunk status to done
+    await ctx.db.patch(item.chunkId, {
+      status: "done",
+      completedAt: Date.now(),
+    });
+
+    // Update area's lastTouchedAt
+    const chunk = await ctx.db.get(item.chunkId);
+    if (chunk) {
+      await ctx.db.patch(chunk.areaId, {
+        lastTouchedAt: Date.now(),
+      });
+    }
+
+    return args.itemId;
+  },
+});
+
+export const skipItem = mutation({
+  args: {
+    itemId: v.id("dayPlanItems"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const item = await ctx.db.get(args.itemId);
+    if (!item) {
+      throw new Error("Day plan item not found");
+    }
+
+    // Verify day plan belongs to user
+    const dayPlan = await ctx.db.get(item.dayPlanId);
+    if (!dayPlan || dayPlan.userId !== (identity.subject as any)) {
+      throw new Error("Access denied");
+    }
+
+    // Skip this item
+    await ctx.db.patch(args.itemId, {
+      status: "skipped",
+    });
+
+    // Update chunk status back to ready
+    await ctx.db.patch(item.chunkId, {
+      status: "ready",
+    });
+
+    return args.itemId;
   },
 });
 

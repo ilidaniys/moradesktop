@@ -1,17 +1,21 @@
 "use client";
 
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { ChevronDown, ChevronRight, Edit, Sparkles, Trash } from "lucide-react";
 import { useState } from "react";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
 import { ChunksList } from "~/components/chunks/ChunksList";
+import { ExtractedChunksReview } from "~/components/chunks/ExtractedChunksReview";
 import { IntentionForm } from "./IntentionForm";
 import { DeleteIntentionDialog } from "./DeleteIntentionDialog";
 import { cn } from "~/lib/utils";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
+import { useExtractChunks } from "~/hooks/useExtractChunks";
+import type { ExtractedChunk } from "~/lib/ai/types";
+import { toast } from "sonner";
 
 type IntentionStatus = "active" | "paused" | "done";
 
@@ -25,6 +29,7 @@ interface Intention {
 
 interface IntentionSectionProps {
   intention: Intention;
+  areaTitle: string;
   defaultExpanded?: boolean;
 }
 
@@ -48,19 +53,89 @@ const statusConfig: Record<
 
 export function IntentionSection({
   intention,
+  areaTitle,
   defaultExpanded = true,
 }: IntentionSectionProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [showExtractedChunks, setShowExtractedChunks] = useState(false);
+  const [extractedChunks, setExtractedChunks] = useState<ExtractedChunk[]>([]);
+  const [extractReasoning, setExtractReasoning] = useState("");
 
   const chunks = useQuery(api.chunks.listByIntention, {
     intentionId: intention._id,
   });
 
+  const { extractChunks, isLoading: isExtracting } = useExtractChunks();
+  const createBatchMutation = useMutation(api.chunks.createBatch);
+
   const chunkCount = chunks?.length ?? 0;
   const readyCount = chunks?.filter((c) => c.status === "ready").length ?? 0;
   const statusInfo = statusConfig[intention.status];
+
+  const handleExtractChunks = async () => {
+    const existingChunks = chunks?.map((c) => ({
+      title: c.title,
+      dod: c.dod,
+    }));
+    console.log("Calling extractChunks with:", {
+      intentionTitle: intention.title,
+      intentionDescription: intention.description,
+      areaTitle,
+      existingChunks,
+    });
+
+    const result = await extractChunks({
+      intentionTitle: intention.title,
+      intentionDescription: intention.description,
+      areaTitle,
+      existingChunks,
+    });
+
+    console.log("Extract chunks result:", result);
+
+    if (result) {
+      console.log("Setting chunks:", result.chunks);
+      console.log("Setting reasoning:", result.reasoning);
+      setExtractedChunks(result.chunks);
+      setExtractReasoning(result.reasoning);
+      setShowExtractedChunks(true);
+    } else {
+      toast.error("Failed to extract chunks", {
+        description: "Please try again",
+      });
+    }
+  };
+
+  const handleAcceptChunks = async (acceptedChunks: ExtractedChunk[]) => {
+    try {
+      await createBatchMutation({
+        intentionId: intention._id,
+        chunks: acceptedChunks.map((chunk) => ({
+          title: chunk.title,
+          dod: chunk.dod,
+          durationMin: chunk.durationMin,
+          tags: chunk.tags,
+        })),
+      });
+
+      toast.success("Chunks created", {
+        description: `Created ${acceptedChunks.length} new chunks`,
+      });
+
+      setShowExtractedChunks(false);
+    } catch (error) {
+      toast.error("Failed to create chunks", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  };
+
+  const handleRejectChunks = () => {
+    setShowExtractedChunks(false);
+    // Could trigger regeneration here
+  };
 
   return (
     <>
@@ -142,15 +217,16 @@ export function IntentionSection({
                 <>
                   <ChunksList intentionId={intention._id} chunks={chunks} />
 
-                  {/* Extract Chunks AI Button - Disabled for now */}
+                  {/* Extract Chunks AI Button */}
                   <Button
                     variant="outline"
                     size="sm"
-                    disabled
+                    onClick={handleExtractChunks}
+                    disabled={isExtracting || intention.status !== "active"}
                     className="w-full"
                   >
                     <Sparkles className="mr-2 h-4 w-4" />
-                    Extract Chunks with AI (Coming Soon)
+                    {isExtracting ? "Extracting..." : "Extract Chunks with AI"}
                   </Button>
                 </>
               )}
@@ -178,6 +254,16 @@ export function IntentionSection({
         chunkCount={chunkCount}
         open={isDeleteOpen}
         onOpenChange={setIsDeleteOpen}
+      />
+
+      {/* Extracted Chunks Review Dialog */}
+      <ExtractedChunksReview
+        open={showExtractedChunks}
+        onOpenChange={setShowExtractedChunks}
+        chunks={extractedChunks}
+        reasoning={extractReasoning}
+        onAccept={handleAcceptChunks}
+        onReject={handleRejectChunks}
       />
     </>
   );

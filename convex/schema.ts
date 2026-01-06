@@ -105,12 +105,15 @@ export default defineSchema({
     locked: v.boolean(), // User-locked, won't be changed by AI
     status: v.union(
       v.literal("pending"),
+      v.literal("inProgress"),
       v.literal("completed"),
       v.literal("skipped"),
       v.literal("moved"),
     ),
     aiReason: v.optional(v.string()), // Why AI suggested this chunk
     actualDurationMin: v.optional(v.number()), // Tracked time
+    startedAt: v.optional(v.number()), // When item was started
+    completedAt: v.optional(v.number()), // When item was completed
   })
     .index("by_dayPlan", ["dayPlanId"])
     .index("by_chunk", ["chunkId"]),

@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Calendar, BarChart3, Settings } from "lucide-react";
+import { LayoutDashboard, Calendar, BarChart3, Settings, CheckSquare } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { cn } from "~/lib/utils";
 
 const navigation = [
+  { name: "Dashboard", href: "/dashboard", icon: CheckSquare },
   { name: "Areas", href: "/areas", icon: LayoutDashboard },
   { name: "Day Builder", href: "/day-builder", icon: Calendar },
   { name: "Analytics", href: "/analytics", icon: BarChart3 },
