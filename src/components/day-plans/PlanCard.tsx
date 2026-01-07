@@ -44,7 +44,7 @@ import {
 } from "lucide-react";
 import { cn } from "~/lib/utils";
 
-type DayPlanStatus = "draft" | "active" | "completed";
+type DayPlanStatus = "draft" | "active" | "completed" | "expired";
 type EnergyMode = "deep" | "normal" | "light";
 
 interface PlanCardProps {
@@ -99,6 +99,22 @@ export function PlanCard({
   const energyConfig = energyModeConfig[plan.energyMode];
   const EnergyIcon = energyConfig.icon;
 
+  // Get border color based on status
+  const getStatusBorderColor = () => {
+    switch (plan.status) {
+      case "active":
+        return "border-l-4 border-l-blue-500";
+      case "completed":
+        return "border-l-4 border-l-green-500";
+      case "expired":
+        return "border-l-4 border-l-amber-500";
+      case "draft":
+        return "border-l-4 border-l-slate-300";
+      default:
+        return "";
+    }
+  };
+
   const handleEdit = (e: React.MouseEvent) => {
     e.stopPropagation();
     setIsEditOpen(true);
@@ -126,6 +142,7 @@ export function PlanCard({
           "cursor-pointer transition-all hover:shadow-md",
           isSelected && "ring-primary shadow-md ring-2",
           isPlanPast && !isSelected && "opacity-75",
+          getStatusBorderColor(),
         )}
         onClick={onSelect}
       >
@@ -245,6 +262,11 @@ export function PlanCard({
               {plan.status === "active" && (
                 <span className="mt-2 block font-medium text-amber-600">
                   ⚠ This is your active plan for today!
+                </span>
+              )}
+              {plan.status === "expired" && (
+                <span className="mt-2 block font-medium text-amber-600">
+                  ⚠ This plan has expired. You can still delete it to clean up.
                 </span>
               )}
             </AlertDialogDescription>

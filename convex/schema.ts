@@ -90,6 +90,7 @@ export default defineSchema({
       v.literal("draft"),
       v.literal("active"),
       v.literal("completed"),
+      v.literal("expired"),
     ),
     finalizedAt: v.optional(v.number()),
     completedAt: v.optional(v.number()),

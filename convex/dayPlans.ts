@@ -1,5 +1,63 @@
-import { mutation, query } from "./_generated/server";
+import { internalMutation, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+
+// Internal mutation to mark expired plans
+export const markExpiredPlans = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const today = new Date().toISOString().split("T")[0]!;
+
+    // Get all plans that are past their date and not completed or expired
+    const allPlans = await ctx.db.query("dayPlans").collect();
+
+    const expiredPlans = allPlans.filter(
+      (plan) =>
+        plan.date < today &&
+        plan.status !== "completed" &&
+        plan.status !== "expired",
+    );
+
+    // Mark them as expired
+    for (const plan of expiredPlans) {
+      await ctx.db.patch(plan._id, { status: "expired" });
+    }
+
+    return expiredPlans.length;
+  },
+});
+
+// Mutation that can be called by the client to mark expired plans
+export const checkAndMarkExpired = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const today = new Date().toISOString().split("T")[0]!;
+
+    // Get user's plans that are past their date and not completed or expired
+    const plans = await ctx.db
+      .query("dayPlans")
+      .withIndex("by_user", (q) => q.eq("userId", identity.subject))
+      .collect();
+
+    const expiredPlans = plans.filter(
+      (plan) =>
+        plan.date < today &&
+        plan.status !== "completed" &&
+        plan.status !== "expired",
+    );
+
+    // Mark them as expired
+    for (const plan of expiredPlans) {
+      await ctx.db.patch(plan._id, { status: "expired" });
+    }
+
+    return expiredPlans.length;
+  },
+});
 
 export const create = mutation({
   args: {

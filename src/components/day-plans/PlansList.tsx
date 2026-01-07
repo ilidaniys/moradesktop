@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useQuery } from "convex/react";
+import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { Button } from "~/components/ui/button";
@@ -30,8 +30,16 @@ export function PlansList({
   const upcomingPlans = useQuery(api.dayPlans.getUpcomingPlans);
   const allPlans = useQuery(api.dayPlans.listAllPlans, {});
   const { deletePlan } = usePlanManagement();
+  const checkAndMarkExpired = useMutation(api.dayPlans.checkAndMarkExpired);
 
   const today = new Date().toISOString().split("T")[0]!;
+
+  // Check for expired plans when component mounts or plans change
+  useEffect(() => {
+    if (allPlans !== undefined) {
+      void checkAndMarkExpired();
+    }
+  }, [allPlans?.length, checkAndMarkExpired]);
 
   // Get the plans to display based on active tab
   const displayPlans = activeTab === "upcoming" ? upcomingPlans : allPlans;
@@ -95,7 +103,6 @@ export function PlansList({
         </TabsList>
       </Tabs>
 
-      {/* Plans List */}
       <div className="max-h-[calc(100vh-350px)] space-y-2 overflow-y-auto pr-2">
         {isLoading && (
           <div className="flex justify-center py-8">
