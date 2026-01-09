@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { DayPicker } from "react-day-picker";
 import { format } from "date-fns";
 import {
@@ -16,6 +16,7 @@ interface DatePickerDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSelectDate: (date: string) => void;
+  currentDate?: string;
   existingPlanDates?: string[];
   disablePast?: boolean;
 }
@@ -24,10 +25,23 @@ export function DatePickerDialog({
   open,
   onOpenChange,
   onSelectDate,
+  currentDate,
   existingPlanDates = [],
   disablePast = false,
 }: DatePickerDialogProps) {
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(() => {
+    if (currentDate) {
+      return new Date(currentDate + "T00:00:00");
+    }
+    return undefined;
+  });
+
+  // Update selected date when dialog opens or currentDate changes
+  useEffect(() => {
+    if (open && currentDate) {
+      setSelectedDate(new Date(currentDate + "T00:00:00"));
+    }
+  }, [open, currentDate]);
 
   const handleSelect = (date: Date | undefined) => {
     setSelectedDate(date);
@@ -38,12 +52,16 @@ export function DatePickerDialog({
       const dateString = format(selectedDate, "yyyy-MM-dd");
       onSelectDate(dateString);
       onOpenChange(false);
-      setSelectedDate(undefined);
     }
   };
 
   const handleCancel = () => {
-    setSelectedDate(undefined);
+    // Reset to current date when canceling
+    if (currentDate) {
+      setSelectedDate(new Date(currentDate + "T00:00:00"));
+    } else {
+      setSelectedDate(undefined);
+    }
     onOpenChange(false);
   };
 

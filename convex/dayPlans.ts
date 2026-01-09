@@ -59,6 +59,114 @@ export const checkAndMarkExpired = mutation({
   },
 });
 
+// Comprehensive cleanup mutation for expired plans with item and chunk handling
+// This is idempotent - running multiple times produces the same result
+export const cleanupExpiredPlans = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const today = new Date().toISOString().split("T")[0]!;
+
+    // Step 1: Find stale plans (date < today, status in draft/active)
+    const plans = await ctx.db
+      .query("dayPlans")
+      .withIndex("by_user", (q) => q.eq("userId", identity.subject))
+      .collect();
+
+    const stalePlans = plans.filter(
+      (plan) =>
+        plan.date < today &&
+        (plan.status === "draft" ||
+          plan.status === "active" ||
+          plan.status === "expired"),
+    );
+    console.log(stalePlans, "plans");
+    let plansExpired = 0;
+    let itemsMoved = 0;
+    let chunksReleased = 0;
+
+    for (const plan of stalePlans) {
+      // Step 2: Get all items for this plan
+      const items = await ctx.db
+        .query("dayPlanItems")
+        .withIndex("by_dayPlan", (q) => q.eq("dayPlanId", plan._id))
+        .collect();
+
+      // Step 3: Process pending and inProgress items
+      for (const item of items) {
+        if (item.status === "pending" || item.status === "inProgress") {
+          // Mark item as moved (auto-rolled)
+          await ctx.db.patch(item._id, { status: "moved" });
+          itemsMoved++;
+
+          // Release the chunk back to ready pool
+          const chunk = await ctx.db.get(item.chunkId);
+          if (
+            chunk &&
+            (chunk.status === "inPlan" || chunk.status === "inProgress")
+          ) {
+            await ctx.db.patch(item.chunkId, { status: "ready" });
+            chunksReleased++;
+          }
+        }
+        // completed, skipped, moved items - no action needed (preserved for history)
+      }
+
+      // Step 4: Mark plan as expired
+      await ctx.db.patch(plan._id, { status: "expired" });
+      plansExpired++;
+    }
+
+    return { plansExpired, itemsMoved, chunksReleased };
+  },
+});
+
+// Internal helper function for cleanup - used by create mutation
+async function cleanupExpiredPlansInternal(
+  ctx: { db: any },
+  userId: string,
+): Promise<void> {
+  const today = new Date().toISOString().split("T")[0]!;
+
+  const plans = await ctx.db
+    .query("dayPlans")
+    .withIndex("by_user", (q: any) => q.eq("userId", userId))
+    .collect();
+
+  const stalePlans = plans.filter(
+    (plan: any) =>
+      plan.date < today &&
+      (plan.status === "draft" || plan.status === "active"),
+  );
+
+  for (const plan of stalePlans) {
+    const items = await ctx.db
+      .query("dayPlanItems")
+      .withIndex("by_dayPlan", (q: any) => q.eq("dayPlanId", plan._id))
+      .collect();
+
+    for (const item of items) {
+      if (item.status === "pending" || item.status === "inProgress") {
+        await ctx.db.patch(item._id, { status: "moved" });
+
+        const chunk = await ctx.db.get(item.chunkId);
+        if (
+          chunk &&
+          (chunk.status === "inPlan" || chunk.status === "inProgress")
+        ) {
+          await ctx.db.patch(item.chunkId, { status: "ready" });
+        }
+      }
+    }
+
+    await ctx.db.patch(plan._id, { status: "expired" });
+  }
+}
+
 export const create = mutation({
   args: {
     date: v.string(),
@@ -76,18 +184,10 @@ export const create = mutation({
       throw new Error("Not authenticated");
     }
 
-    // Check if a plan already exists for this date
-    const existing = await ctx.db
-      .query("dayPlans")
-      .withIndex("by_user_date", (q) =>
-        q.eq("userId", identity.subject).eq("date", args.date),
-      )
-      .first();
+    // Run cleanup before creating new plan to ensure clean chunk pool
+    await cleanupExpiredPlansInternal(ctx, identity.subject);
 
-    if (existing) {
-      throw new Error("A day plan already exists for this date");
-    }
-
+    // Allow multiple plans per date - removed duplicate check
     const dayPlanId = await ctx.db.insert("dayPlans", {
       userId: identity.subject as any,
       date: args.date,
@@ -186,6 +286,73 @@ export const getByDate = query({
 
     return {
       ...dayPlan,
+      items: itemsWithChunks,
+    };
+  },
+});
+
+// Get the active plan for a specific date (for dashboard display)
+export const getActivePlanByDate = query({
+  args: {
+    date: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      return null;
+    }
+
+    // Get all plans for this date
+    const plans = await ctx.db
+      .query("dayPlans")
+      .withIndex("by_user_date", (q) =>
+        q.eq("userId", identity.subject).eq("date", args.date),
+      )
+      .collect();
+
+    // Find the active plan
+    const activePlan = plans.find((p) => p.status === "active");
+
+    if (!activePlan) {
+      return null;
+    }
+
+    // Get all items in the plan
+    const items = await ctx.db
+      .query("dayPlanItems")
+      .withIndex("by_dayPlan", (q) => q.eq("dayPlanId", activePlan._id))
+      .collect();
+
+    // Fetch chunks with area and intention data for each item
+    const itemsWithChunks = await Promise.all(
+      items.map(async (item) => {
+        const chunk = await ctx.db.get(item.chunkId);
+        if (!chunk) {
+          return {
+            ...item,
+            chunk: null,
+            area: null,
+            intention: null,
+          };
+        }
+
+        const area = await ctx.db.get(chunk.areaId);
+        const intention = await ctx.db.get(chunk.intentionId);
+
+        return {
+          ...item,
+          chunk,
+          area,
+          intention,
+        };
+      }),
+    );
+
+    // Sort by order
+    itemsWithChunks.sort((a, b) => a.order - b.order);
+
+    return {
+      ...activePlan,
       items: itemsWithChunks,
     };
   },
@@ -561,10 +728,62 @@ export const finalize = mutation({
       throw new Error("Day plan not found or access denied");
     }
 
+    // Deactivate other plans for the same date (set to finalized)
+    const sameDatePlans = await ctx.db
+      .query("dayPlans")
+      .withIndex("by_user_date", (q) =>
+        q.eq("userId", identity.subject).eq("date", dayPlan.date),
+      )
+      .collect();
+
+    for (const plan of sameDatePlans) {
+      if (plan._id !== args.dayPlanId && plan.status === "active") {
+        await ctx.db.patch(plan._id, { status: "finalized" });
+      }
+    }
+
+    // Finalize this plan (set to active)
     await ctx.db.patch(args.dayPlanId, {
       status: "active",
       finalizedAt: Date.now(),
     });
+  },
+});
+
+// Activate a plan (manually set as active for dashboard)
+export const activate = mutation({
+  args: {
+    dayPlanId: v.id("dayPlans"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const dayPlan = await ctx.db.get(args.dayPlanId);
+    if (!dayPlan || dayPlan.userId !== (identity.subject as any)) {
+      throw new Error("Day plan not found or access denied");
+    }
+
+    // Deactivate other plans for the same date (set to finalized)
+    const sameDatePlans = await ctx.db
+      .query("dayPlans")
+      .withIndex("by_user_date", (q) =>
+        q.eq("userId", identity.subject).eq("date", dayPlan.date),
+      )
+      .collect();
+
+    for (const plan of sameDatePlans) {
+      if (plan._id !== args.dayPlanId && plan.status === "active") {
+        await ctx.db.patch(plan._id, { status: "finalized" });
+      }
+    }
+
+    // Activate this plan
+    await ctx.db.patch(args.dayPlanId, { status: "active" });
+
+    return args.dayPlanId;
   },
 });
 

@@ -12,25 +12,29 @@ import { DatePickerDialog } from "./DatePickerDialog";
 import { EmptyState } from "~/components/shared/EmptyState";
 import { LoadingSpinner } from "~/components/shared/LoadingSpinner";
 import { usePlanManagement } from "~/hooks/usePlanManagement";
+import { format } from "date-fns";
+import { toast } from "sonner";
 
 interface PlansListProps {
   selectedPlanId: Id<"dayPlans"> | null;
+  selectedDate: string;
   onSelectPlan: (planId: Id<"dayPlans">) => void;
   onCreateNew: (date: string) => void;
 }
 
 export function PlansList({
   selectedPlanId,
+  selectedDate,
   onSelectPlan,
   onCreateNew,
 }: PlansListProps) {
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<string>("upcoming");
+  const [activeTab, setActiveTab] = useState<string>("selected-date");
 
-  const upcomingPlans = useQuery(api.dayPlans.getUpcomingPlans);
   const allPlans = useQuery(api.dayPlans.listAllPlans, {});
   const { deletePlan } = usePlanManagement();
   const checkAndMarkExpired = useMutation(api.dayPlans.checkAndMarkExpired);
+  const createDayPlan = useMutation(api.dayPlans.create);
 
   const today = new Date().toISOString().split("T")[0]!;
 
@@ -41,8 +45,15 @@ export function PlansList({
     }
   }, [allPlans?.length, checkAndMarkExpired]);
 
+  // Filter plans for the selected date
+  const plansForSelectedDate = useMemo(() => {
+    if (!allPlans) return undefined;
+    return allPlans.filter((plan) => plan.date === selectedDate);
+  }, [allPlans, selectedDate]);
+
   // Get the plans to display based on active tab
-  const displayPlans = activeTab === "upcoming" ? upcomingPlans : allPlans;
+  const displayPlans =
+    activeTab === "selected-date" ? plansForSelectedDate : allPlans;
 
   // Extract existing plan dates for date picker
   const existingPlanDates = useMemo(() => {
@@ -50,8 +61,27 @@ export function PlansList({
     return allPlans.map((p) => p.date);
   }, [allPlans]);
 
-  const handleCreateToday = () => {
-    onCreateNew(today);
+  const handleCreatePlan = async () => {
+    try {
+      // Create a new plan for the selected date
+      const newPlanId = await createDayPlan({
+        date: selectedDate,
+        timeBudget: 480, // 8 hours default
+        energyMode: "normal",
+      });
+
+      // Auto-select the newly created plan
+      onSelectPlan(newPlanId);
+
+      toast.success("Draft plan created", {
+        description: `New draft plan created for ${format(new Date(selectedDate + "T00:00:00"), "MMM d, yyyy")}`,
+      });
+    } catch (error) {
+      console.error("Failed to create plan:", error);
+      toast.error("Failed to create plan", {
+        description: "Please try again",
+      });
+    }
   };
 
   const handleDateSelect = (date: string) => {
@@ -74,12 +104,12 @@ export function PlansList({
   const isLoading = displayPlans === undefined;
 
   return (
-    <div className="space-y-4">
+    <div className="flex min-h-0 flex-1 flex-col space-y-4">
       {/* Action Buttons */}
-      <div className="space-y-2">
-        <Button onClick={handleCreateToday} className="w-full">
+      <div className="shrink-0 space-y-2">
+        <Button onClick={handleCreatePlan} className="w-full">
           <Plus className="mr-2 h-4 w-4" />
-          New Plan for Today
+          Create New Plan
         </Button>
         <Button
           onClick={() => setIsDatePickerOpen(true)}
@@ -87,23 +117,27 @@ export function PlansList({
           className="w-full"
         >
           <Calendar className="mr-2 h-4 w-4" />
-          Select Date
+          {format(new Date(selectedDate + "T00:00:00"), "MMM d, yyyy")}
         </Button>
       </div>
 
       {/* Filter Tabs */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v)}>
+      <Tabs
+        value={activeTab}
+        onValueChange={(v) => setActiveTab(v)}
+        className="shrink-0"
+      >
         <TabsList className="w-full">
-          <TabsTrigger value="upcoming" className="flex-1">
-            Upcoming
+          <TabsTrigger value="selected-date" className="flex-1">
+            {format(new Date(selectedDate + "T00:00:00"), "MMM d")}
           </TabsTrigger>
           <TabsTrigger value="all" className="flex-1">
-            All
+            All Plans
           </TabsTrigger>
         </TabsList>
       </Tabs>
 
-      <div className="max-h-[calc(100vh-350px)] space-y-2 overflow-y-auto pr-2">
+      <div className="flex-1 space-y-5 overflow-y-auto pr-2">
         {isLoading && (
           <div className="flex justify-center py-8">
             <LoadingSpinner size="md" />
@@ -115,8 +149,8 @@ export function PlansList({
             icon={Calendar}
             title="No plans yet"
             description={
-              activeTab === "upcoming"
-                ? "Create your first day plan to get started"
+              activeTab === "selected-date"
+                ? `No plans for ${format(new Date(selectedDate + "T00:00:00"), "MMM d, yyyy")}`
                 : "You haven't created any plans yet"
             }
           />
@@ -141,6 +175,7 @@ export function PlansList({
         open={isDatePickerOpen}
         onOpenChange={setIsDatePickerOpen}
         onSelectDate={handleDateSelect}
+        currentDate={selectedDate}
         existingPlanDates={existingPlanDates}
         disablePast={true}
       />

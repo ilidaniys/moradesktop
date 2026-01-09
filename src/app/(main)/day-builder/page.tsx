@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { DayPlanBuilder } from "~/components/day-plans/DayPlanBuilder";
 import { PlansList } from "~/components/day-plans/PlansList";
@@ -22,18 +22,14 @@ export default function DayBuilderPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const upcomingPlans = useQuery(api.dayPlans.getUpcomingPlans);
-  const currentPlan = useQuery(api.dayPlans.getByDate, { date: selectedDate });
+  const cleanupMutation = useMutation(api.dayPlans.cleanupExpiredPlans);
 
-  // Auto-select today's plan if it exists and nothing is selected
   useEffect(() => {
-    if (!selectedPlanId && currentPlan) {
-      setSelectedPlanId(currentPlan._id);
-    }
-  }, [currentPlan, selectedPlanId]);
+    void cleanupMutation();
+  }, [cleanupMutation]);
 
   const handleSelectPlan = (planId: Id<"dayPlans">) => {
     setSelectedPlanId(planId);
-    // Find the plan's date to update selectedDate
     const plan = upcomingPlans?.find((p) => p._id === planId);
     if (plan) {
       setSelectedDate(plan.date);
@@ -56,41 +52,46 @@ export default function DayBuilderPage() {
   }
 
   return (
-    <div>
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-primary text-2xl font-medium">Day Builder</h1>
-          <p className="text-secondary mt-1 text-sm">
-            Build and manage your daily plans
-          </p>
+    <div className="flex h-[calc(100vh-100px)] flex-col">
+      <div className="mb-4 flex shrink-0 items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="h-9 w-9"
+          >
+            {sidebarOpen ? <PanelLeftClose /> : <PanelLeft />}
+          </Button>
+          <div>
+            <h1 className="text-primary text-2xl font-medium">Day Builder</h1>
+            <p className="text-secondary mt-1 text-sm">
+              Build and manage your daily plans
+            </p>
+          </div>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="lg:hidden"
-        >
-          {sidebarOpen ? <PanelLeftClose /> : <PanelLeft />}
-        </Button>
       </div>
 
-      <div className="flex gap-6">
+      <div className="flex min-h-0 flex-1 gap-6">
         {/* Sidebar - Plans List */}
         <aside
           className={cn(
-            "w-80 shrink-0 space-y-4",
-            !sidebarOpen && "hidden lg:block",
+            "shrink-0 overflow-x-hidden transition-all duration-300 ease-in-out",
+            sidebarOpen ? "w-96 opacity-100" : "w-0 opacity-0",
           )}
         >
-          <PlansList
-            selectedPlanId={selectedPlanId}
-            onSelectPlan={handleSelectPlan}
-            onCreateNew={handleCreateNew}
-          />
+          <div className="flex h-full w-96 flex-col">
+            <PlansList
+              selectedPlanId={selectedPlanId}
+              selectedDate={selectedDate}
+              onSelectPlan={handleSelectPlan}
+              onCreateNew={handleCreateNew}
+            />
+          </div>
         </aside>
 
         {/* Main Content - Day Plan Builder */}
-        <main className="min-w-0 flex-1">
+        <main className="min-w-0 flex-1 overflow-y-auto pr-1 transition-all duration-300 ease-in-out">
           <DayPlanBuilder
             selectedPlanId={selectedPlanId}
             selectedDate={selectedDate}

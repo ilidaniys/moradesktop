@@ -151,6 +151,13 @@ export function DayPlanBuilder({
   const handleFinalizePlan = async () => {
     if (!dayPlanId) return;
 
+    // For finalized plans, just show success (changes are already saved via addItem/removeItem)
+    // Don't call finalize mutation as that would make it active
+    if (existingPlan?.status === "finalized") {
+      toast.success("Plan updated");
+      return;
+    }
+
     try {
       await finalizePlanMutation({
         dayPlanId,
@@ -343,12 +350,41 @@ export function DayPlanBuilder({
     // Could trigger regeneration here if desired
   };
 
+  // Get button text based on plan status
+  const getFinalizeButtonText = () => {
+    if (!existingPlan) return "Finalize Plan";
+
+    switch (existingPlan.status) {
+      case "draft":
+        return "Finalize Plan";
+      case "finalized":
+      case "active":
+      case "completed":
+        return "Update Plan";
+      default:
+        return "Finalize Plan";
+    }
+  };
+
   const isLoading = existingPlan === undefined;
 
   if (isLoading) {
     return (
       <div className="py-12">
         <LoadingSpinner size="lg" text="Loading day plan..." />
+      </div>
+    );
+  }
+
+  // Show empty state when no plan is selected
+  if (!selectedPlanId) {
+    return (
+      <div className="flex h-full items-center justify-center py-20">
+        <EmptyState
+          icon={LayoutDashboard}
+          title="No plan selected"
+          description="Select a plan from the sidebar or create a new one to get started"
+        />
       </div>
     );
   }
@@ -439,7 +475,7 @@ export function DayPlanBuilder({
               disabled={isGeneratingPlan}
             >
               <CheckCircle2 className="mr-2 h-4 w-4" />
-              Finalize Plan
+              {getFinalizeButtonText()}
             </Button>
           </div>
         )}

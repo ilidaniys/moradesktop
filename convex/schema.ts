@@ -88,6 +88,7 @@ export default defineSchema({
     notes: v.optional(v.string()),
     status: v.union(
       v.literal("draft"),
+      v.literal("finalized"),
       v.literal("active"),
       v.literal("completed"),
       v.literal("expired"),

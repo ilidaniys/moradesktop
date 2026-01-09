@@ -42,7 +42,7 @@ interface DayPlan {
   date: string;
   timeBudget: number;
   energyMode: "deep" | "normal" | "light";
-  status: "draft" | "active" | "completed";
+  status: "draft" | "finalized" | "active" | "completed" | "expired";
   items: DayPlanItem[];
 }
 
